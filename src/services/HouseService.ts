@@ -42,7 +42,10 @@ export const fetchHouseMaps = async (houseCode: string): Promise<Record<string, 
 // Save single map to Supabase
 export const saveHouseMapToDB = async (houseCode: string, mapId: string, mapData: MapDefinition) => {
   try {
-    // Upsert into Supabase
+    // 1. Also update localStorage cache immediately
+    localStorage.setItem('on_house_map_' + mapId, JSON.stringify(mapData));
+
+    // 2. Try upsert into Supabase
     const { error } = await supabase
       .from('house_maps')
       .upsert({
@@ -53,7 +56,33 @@ export const saveHouseMapToDB = async (houseCode: string, mapId: string, mapData
       }, { onConflict: 'house_code,map_id' });
 
     if (error) {
-      console.error('Failed to save house map to Supabase:', error.message);
+      console.warn('Upsert fallback triggered:', error.message);
+      // Fallback check if existing row exists
+      const { data: existing } = await supabase
+        .from('house_maps')
+        .select('id')
+        .eq('house_code', houseCode)
+        .eq('map_id', mapId)
+        .maybeSingle();
+
+      if (existing && existing.id) {
+        await supabase
+          .from('house_maps')
+          .update({
+            map_data: mapData,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('house_maps')
+          .insert({
+            house_code: houseCode,
+            map_id: mapId,
+            map_data: mapData,
+            updated_at: new Date().toISOString()
+          });
+      }
     }
   } catch (err) {
     console.error('Error in saveHouseMapToDB:', err);

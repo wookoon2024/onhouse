@@ -427,12 +427,23 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
   };
 
   handleUndoRef.current = handleUndo;
-  handleRedoRef.current = handleRedo;
+  // Auto-sync map edits to Supabase DB & localStorage continuously
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      onSaveMap(selectedMapId, localMap);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [localMap, selectedMapId, onSaveMap]);
 
   const handleSave = () => {
     onSaveMap(selectedMapId, localMap);
     setOriginalMap(localMap);
-    alert('디자인 변경 사항이 성공적으로 저장되었습니다!');
+    alert('디자인 변경 사항이 성공적으로 클라우드에 저장되었습니다!');
   };
 
   const handleExportBackup = () => {
