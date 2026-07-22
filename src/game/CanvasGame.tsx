@@ -690,7 +690,7 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
       renderList.sort((a, b) => a.y - b.y);
 
       renderList.forEach((player) => {
-        const spriteSheet = images[player.spriteType];
+        const spriteSheet = images[player.spriteType] || images['ninja_blue'];
         if (!spriteSheet) return;
 
         const dyedSpriteSheet = getDyedSprite(spriteSheet, player.hue, player.isOnline);

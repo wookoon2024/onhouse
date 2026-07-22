@@ -30,8 +30,8 @@ export const MapSelector: React.FC<MapSelectorProps> = ({
 
       <div style={{
         display: 'flex', gap: '6px', overflowX: 'auto', overflowY: 'hidden',
-        flexWrap: 'nowrap', WebkitOverflowScrolling: 'touch', paddingBottom: '2px',
-        alignItems: 'center'
+        flexWrap: 'nowrap', WebkitOverflowScrolling: 'touch', paddingBottom: 0,
+        alignItems: 'center', scrollbarWidth: 'none', msOverflowStyle: 'none'
       }}>
         {availableMapIds.map((mId) => {
           const mapObj = activeMaps[mId];
