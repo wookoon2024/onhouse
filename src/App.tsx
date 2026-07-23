@@ -339,10 +339,12 @@ export default function App() {
       .on('broadcast', { event: 'chat' }, ({ payload }) => {
         if (!payload || payload.id === deviceId.current) return;
         if (payload.text && !payload.text.startsWith('/')) {
-          setChatBubbles((prev) => ({
-            ...prev,
-            [payload.id]: { text: payload.text, time: Date.now() }
-          }));
+          if (payload.senderName !== '🚀 시스템') {
+            setChatBubbles((prev) => ({
+              ...prev,
+              [payload.id]: { text: payload.text, time: Date.now() }
+            }));
+          }
 
           setChatLogs((prev) => [
             ...prev,
@@ -612,8 +614,8 @@ export default function App() {
               }
             };
           });
-          // Add to speech bubble (Do NOT display slash commands starting with '/')
-          if (msg.text && !msg.text.startsWith('/')) {
+          // Add to speech bubble (Do NOT display slash commands or system messages)
+          if (msg.text && !msg.text.startsWith('/') && msg.senderName !== '🚀 시스템') {
             setChatBubbles((prev) => ({
               ...prev,
               [msg.playerId]: { text: msg.text, time: Date.now() }
@@ -840,16 +842,39 @@ export default function App() {
       mapId
     });
 
-    // Notify logs
+    const moveMsgText = `${localPlayerRef.current.nickname}님이 [${targetMap?.name || mapId}] 구역으로 이동하였습니다.`;
+
+    // 1. Add to local chat logs for self
     setChatLogs((prev) => [
       ...prev,
       {
         id: 'system_' + Date.now(),
         senderName: '🚀 시스템',
-        text: `[${targetMap?.name || mapId}] 구역으로 이동하였습니다.`,
+        text: moveMsgText,
         time: Date.now()
       }
     ]);
+
+    // 2. Broadcast system message to all connected players in the House via Supabase Realtime
+    try {
+      supabase.channel(`house:${houseCode}`).send({
+        type: 'broadcast',
+        event: 'chat',
+        payload: {
+          id: deviceId.current,
+          senderName: '🚀 시스템',
+          text: moveMsgText
+        }
+      });
+    } catch (e) {}
+
+    // 3. Broadcast system message to other local tabs
+    bcRef.current?.postMessage({
+      type: 'chat',
+      playerId: deviceId.current,
+      senderName: '🚀 시스템',
+      text: moveMsgText
+    });
   };
 
   // 2.5. Add Map and Delete Map Handlers
