@@ -20,6 +20,8 @@ import { MapEditorView } from './components/MapEditorView';
 import { Mail, Settings, User, Eye, Hammer, Home } from 'lucide-react';
 import { AssetViewer } from './components/AssetViewer';
 import { HouseJoinModal } from './components/HouseJoinModal';
+import { PlayerInteractionModal } from './components/PlayerInteractionModal';
+import { DMRequestModal } from './components/DMRequestModal';
 import { getSavedHouseCode, setSavedHouseCode, fetchHouseMaps, saveHouseMapToDB, fetchHouseAssets } from './services/HouseService';
 import { supabase } from './lib/supabase';
 import { APP_VERSION } from './config/version';
@@ -120,6 +122,14 @@ export default function App() {
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [activeDMTarget, setActiveDMTarget] = useState<PlayerState | null>(null);
   const [showAssetViewer, setShowAssetViewer] = useState(false);
+  const [interactionTargetPlayer, setInteractionTargetPlayer] = useState<PlayerState | null>(null);
+  const [incomingDMRequest, setIncomingDMRequest] = useState<{ requesterId: string; requesterName: string; requesterPlayer: PlayerState } | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   // 3.5. Map Editor states
   const [showProfessionalEditor, setShowProfessionalEditor] = useState(false);
@@ -409,6 +419,57 @@ export default function App() {
           window.dispatchEvent(new Event('on_house_sprites_updated'));
           setAssetVersion((v) => v + 1);
         }
+      })
+      .on('broadcast', { event: 'dm_request' }, ({ payload }) => {
+        if (!payload || payload.toId !== deviceId.current) return;
+        setIncomingDMRequest({
+          requesterId: payload.fromId,
+          requesterName: payload.fromName,
+          requesterPlayer: payload.fromPlayer
+        });
+      })
+      .on('broadcast', { event: 'dm_accept' }, ({ payload }) => {
+        if (!payload || payload.toId !== deviceId.current) return;
+        const partner = payload.accepterPlayer || otherPlayers[payload.fromId] || offlinePlayers[payload.fromId];
+        if (partner) {
+          setActiveDMTarget(partner);
+          showToast(`[${payload.fromName}] 님이 1:1 대화 요청을 수락했습니다!`);
+        }
+      })
+      .on('broadcast', { event: 'dm_decline' }, ({ payload }) => {
+        if (!payload || payload.toId !== deviceId.current) return;
+        showToast(`[${payload.fromName}] 님이 1:1 대화 요청을 거절했습니다.`);
+      })
+      .on('broadcast', { event: 'dm_close' }, ({ payload }) => {
+        if (!payload || payload.toId !== deviceId.current) return;
+        setActiveDMTarget(null);
+        updateUnreadCount();
+        showToast(`[${payload.fromName}] 님이 1:1 대화를 종료했습니다.`);
+      })
+      .on('broadcast', { event: 'reaction' }, ({ payload }) => {
+        if (!payload) return;
+        if (payload.toId === deviceId.current || payload.toId) {
+          setChatBubbles((prev) => ({
+            ...prev,
+            [payload.toId]: { text: payload.emoji, time: Date.now() }
+          }));
+          if (payload.toId === deviceId.current) {
+            showToast(`[${payload.fromName}] 님이 ${payload.emoji} 반응을 보냈습니다!`);
+          }
+        }
+      })
+      .on('broadcast', { event: 'dm_msg' }, ({ payload }) => {
+        if (!payload || payload.toId !== deviceId.current) return;
+        saveDM({
+          id: 'dm_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36),
+          fromId: payload.fromId,
+          fromName: payload.fromName,
+          toId: deviceId.current,
+          text: payload.text,
+          timestamp: payload.timestamp || Date.now(),
+          read: false
+        });
+        updateUnreadCount();
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
@@ -906,7 +967,7 @@ export default function App() {
     chatInputRef.current?.blur();
   };
 
-  // 5. Send DM handler
+  // 5. Send DM handler (local tabs + Supabase Realtime across devices)
   const handleSendDM = (toId: string, text: string) => {
     bcRef.current?.postMessage({
       type: 'dm',
@@ -917,17 +978,130 @@ export default function App() {
       text,
       timestamp: Date.now()
     });
+
+    try {
+      supabase.channel(`house:${houseCode}`).send({
+        type: 'broadcast',
+        event: 'dm_msg',
+        payload: {
+          fromId: localPlayer.id,
+          fromName: localPlayer.nickname,
+          toId,
+          text,
+          timestamp: Date.now()
+        }
+      });
+    } catch (e) {}
   };
 
-  // Handle click on another player (opens DM)
+  // Handle click on another player (opens Player Interaction Modal)
   const handlePlayerClick = (p: PlayerState) => {
     if (p.id === deviceId.current) {
       // Clicked self: open customizer
       setIsCustomizing(true);
     } else {
-      // Clicked another player: open messenger
-      setActiveDMTarget(p);
+      // Clicked another player: open interaction popup modal with 4 options!
+      setInteractionTargetPlayer(p);
     }
+  };
+
+  // Send 1:1 DM Request to target player
+  const handleRequestDMChat = (target: PlayerState) => {
+    try {
+      supabase.channel(`house:${houseCode}`).send({
+        type: 'broadcast',
+        event: 'dm_request',
+        payload: {
+          fromId: localPlayer.id,
+          fromName: localPlayer.nickname,
+          fromPlayer: localPlayer,
+          toId: target.id
+        }
+      });
+      showToast(`[${target.nickname}] 님에게 1:1 대화를 신청했습니다. 응답 대기 중...`);
+    } catch (e) {}
+  };
+
+  // Accept incoming 1:1 DM Request
+  const handleAcceptDMRequest = () => {
+    if (!incomingDMRequest) return;
+    try {
+      supabase.channel(`house:${houseCode}`).send({
+        type: 'broadcast',
+        event: 'dm_accept',
+        payload: {
+          fromId: localPlayer.id,
+          fromName: localPlayer.nickname,
+          accepterPlayer: localPlayer,
+          toId: incomingDMRequest.requesterId
+        }
+      });
+    } catch (e) {}
+
+    setActiveDMTarget(incomingDMRequest.requesterPlayer);
+    setIncomingDMRequest(null);
+  };
+
+  // Decline incoming 1:1 DM Request
+  const handleDeclineDMRequest = () => {
+    if (!incomingDMRequest) return;
+    try {
+      supabase.channel(`house:${houseCode}`).send({
+        type: 'broadcast',
+        event: 'dm_decline',
+        payload: {
+          fromId: localPlayer.id,
+          fromName: localPlayer.nickname,
+          toId: incomingDMRequest.requesterId
+        }
+      });
+    } catch (e) {}
+    setIncomingDMRequest(null);
+  };
+
+  // Close 1:1 DM Chat session and notify partner
+  const handleCloseDMChat = () => {
+    if (activeDMTarget) {
+      try {
+        supabase.channel(`house:${houseCode}`).send({
+          type: 'broadcast',
+          event: 'dm_close',
+          payload: {
+            fromId: localPlayer.id,
+            fromName: localPlayer.nickname,
+            toId: activeDMTarget.id
+          }
+        });
+      } catch (e) {}
+    }
+    setActiveDMTarget(null);
+    updateUnreadCount();
+  };
+
+  // Send reaction emoji
+  const handleSendReaction = (targetId: string, emoji: string) => {
+    try {
+      supabase.channel(`house:${houseCode}`).send({
+        type: 'broadcast',
+        event: 'reaction',
+        payload: {
+          fromId: localPlayer.id,
+          fromName: localPlayer.nickname,
+          toId: targetId,
+          emoji
+        }
+      });
+    } catch (e) {}
+    setChatBubbles((prev) => ({
+      ...prev,
+      [targetId]: { text: emoji, time: Date.now() }
+    }));
+  };
+
+  // Leave offline/online note for target
+  const handleLeaveNote = (targetId: string, noteText: string) => {
+    handleSendDM(targetId, `[📝 메모] ${noteText}`);
+    showToast('메모가 정상적으로 전달되었습니다.');
   };
 
   // Open Inbox / Mailbox
@@ -1019,6 +1193,40 @@ export default function App() {
 
 
 
+      {/* Toast Notification Banner */}
+      {toastMessage && (
+        <div style={{
+          position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 200, background: 'rgba(20, 20, 30, 0.95)', color: '#fff',
+          border: '1px solid var(--accent)', borderRadius: '8px', padding: '10px 18px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.6)', fontFamily: 'var(--font-pixel)',
+          fontSize: '12px', fontWeight: 'bold', pointerEvents: 'none'
+        }}>
+          {toastMessage}
+        </div>
+      )}
+
+      {/* Player Interaction Modal (Clicked Player Options Popup) */}
+      {interactionTargetPlayer && (
+        <PlayerInteractionModal
+          localPlayer={localPlayer}
+          targetPlayer={interactionTargetPlayer}
+          onClose={() => setInteractionTargetPlayer(null)}
+          onRequestDMChat={handleRequestDMChat}
+          onSendReaction={handleSendReaction}
+          onLeaveNote={handleLeaveNote}
+        />
+      )}
+
+      {/* Incoming 1:1 DM Request Modal (10s auto-dismiss timer) */}
+      {incomingDMRequest && (
+        <DMRequestModal
+          requesterName={incomingDMRequest.requesterName}
+          onAccept={handleAcceptDMRequest}
+          onDecline={handleDeclineDMRequest}
+        />
+      )}
+
       {/* 5. Customizer Panel (Right overlay) */}
       {isCustomizing && (
         <Customizer
@@ -1033,10 +1241,7 @@ export default function App() {
         <Messenger
           localPlayer={localPlayer}
           activeTarget={activeDMTarget}
-          onClose={() => {
-            setActiveDMTarget(null);
-            updateUnreadCount();
-          }}
+          onClose={handleCloseDMChat}
           onSendDM={handleSendDM}
         />
       )}
