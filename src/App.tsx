@@ -81,6 +81,8 @@ export default function App() {
     return ['room', 'subway', 'park', 'apt'];
   });
 
+  const isMobileDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || window.innerWidth < 768;
+
   // 1. Local Player State
   const [localPlayer, setLocalPlayer] = useState<PlayerState>(() => {
     const savedName = localStorage.getItem('on_house_nickname') || generateNickname();
@@ -104,6 +106,7 @@ export default function App() {
       dir: 'down',
       isMoving: false,
       isOnline: true,
+      isMobile: isMobileDevice,
       statusMessage: savedStatus,
       lastActive: Date.now()
     };
@@ -377,9 +380,6 @@ export default function App() {
 
         setOtherPlayers((prev) => {
           if (prev[payload.id]) {
-            const copy = { ...prev };
-            delete copy[payload.id];
-
             setChatLogs((logs) => [
               ...logs,
               {
@@ -389,7 +389,16 @@ export default function App() {
                 time: Date.now()
               }
             ]);
-            return copy;
+
+            return {
+              ...prev,
+              [payload.id]: {
+                ...prev[payload.id],
+                isOnline: false,
+                statusMessage: '오프라인',
+                lastActive: Date.now()
+              }
+            };
           }
           return prev;
         });
@@ -717,13 +726,41 @@ export default function App() {
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleUnload();
+      }
+    };
+
     window.addEventListener('beforeunload', handleUnload);
     window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('freeze', handleUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Heartbeat / Inactivity Timeout Monitor: Mark player as offline after 15s of inactivity
+    const offlineCheckTimer = setInterval(() => {
+      const now = Date.now();
+      setOtherPlayers((prev) => {
+        let updated = false;
+        const next = { ...prev };
+        for (const pid in next) {
+          const p = next[pid];
+          if (p.isOnline && p.statusMessage !== '오프라인' && (now - (p.lastActive || 0) > 15000)) {
+            next[pid] = { ...p, isOnline: false, statusMessage: '오프라인' };
+            updated = true;
+          }
+        }
+        return updated ? next : prev;
+      });
+    }, 5000);
 
     return () => {
       handleUnload();
+      clearInterval(offlineCheckTimer);
       window.removeEventListener('beforeunload', handleUnload);
       window.removeEventListener('pagehide', handleUnload);
+      window.removeEventListener('freeze', handleUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, [houseCode]);
@@ -891,8 +928,6 @@ export default function App() {
           if (msg.playerId && msg.playerId !== deviceId.current) {
             setOtherPlayers((prev) => {
               if (prev[msg.playerId]) {
-                const copy = { ...prev };
-                delete copy[msg.playerId];
                 const leaveName = msg.nickname || '플레이어';
                 setChatLogs((logs) => [
                   ...logs,
@@ -903,7 +938,15 @@ export default function App() {
                     time: Date.now()
                   }
                 ]);
-                return copy;
+                return {
+                  ...prev,
+                  [msg.playerId]: {
+                    ...prev[msg.playerId],
+                    isOnline: false,
+                    statusMessage: '오프라인',
+                    lastActive: Date.now()
+                  }
+                };
               }
               return prev;
             });
@@ -1237,13 +1280,40 @@ export default function App() {
 
   // 3. Status picker updater
   const handleStatusChange = (statusMessage: string) => {
-    setLocalPlayer((prev) => ({ ...prev, statusMessage }));
+    const isOfflineMode = statusMessage === '오프라인';
+    setLocalPlayer((prev) => ({
+      ...prev,
+      statusMessage,
+      isOnline: !isOfflineMode
+    }));
 
     bcRef.current?.postMessage({
       type: 'status',
       playerId: deviceId.current,
-      statusMessage
+      statusMessage,
+      isOnline: !isOfflineMode
     });
+
+    try {
+      supabase.channel(`house:${houseCode}`).send({
+        type: 'broadcast',
+        event: 'player_sync',
+        payload: {
+          id: deviceId.current,
+          player: {
+            ...localPlayerRef.current,
+            statusMessage,
+            isOnline: !isOfflineMode
+          }
+        }
+      });
+    } catch (e) {}
+
+    if (isOfflineMode) {
+      showToast('상태가 💤 오프라인(비활성화)으로 변경되었습니다.');
+    } else {
+      showToast(`상태가 '${statusMessage}'(으)로 변경되었습니다.`);
+    }
   };
 
   // 4. Chat messaging submit
@@ -1282,13 +1352,14 @@ export default function App() {
 
     const currentMapObj = activeMaps[localPlayer.mapId];
     const mapName = currentMapObj ? currentMapObj.name : localPlayer.mapId;
+    const formattedSenderName = `${localPlayer.isMobile ? '📱 ' : ''}${localPlayer.nickname}`;
 
     // Add to logs
     setChatLogs((prev) => [
       ...prev,
       {
         id: 'chat_me_' + Date.now(),
-        senderName: localPlayer.nickname,
+        senderName: formattedSenderName,
         text,
         time: Date.now(),
         channel: chatChannel,
@@ -1303,7 +1374,7 @@ export default function App() {
         event: 'chat',
         payload: {
           id: deviceId.current,
-          senderName: localPlayer.nickname,
+          senderName: formattedSenderName,
           text,
           channel: chatChannel,
           mapId: localPlayer.mapId,

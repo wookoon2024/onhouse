@@ -50,7 +50,9 @@ export const Customizer: React.FC<CustomizerProps> = ({ player, onChange, onClos
     window.dispatchEvent(new Event('on_house_sprites_updated'));
   };
 
-  const allCharOptions = [...DEFAULT_CHARACTERS, ...customChars];
+  const allCharOptions = Array.from(
+    new Map([...DEFAULT_CHARACTERS, ...customChars].map((c) => [c.id, c])).values()
+  );
 
   return (
     <div className="glass-panel" style={{

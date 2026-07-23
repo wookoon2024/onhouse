@@ -9,6 +9,7 @@ export interface PlayerState {
   dir: 'down' | 'up' | 'left' | 'right';
   isMoving: boolean;
   isOnline: boolean;
+  isMobile?: boolean;
   statusMessage: string; // e.g. "식사중", "공부중"
   lastActive: number; // timestamp
   currentEmote?: string | null; // active emote action e.g. "환호", "공격"

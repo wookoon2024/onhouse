@@ -6,7 +6,7 @@ interface StatusPickerProps {
   onStatusChange: (status: string) => void;
 }
 
-const PRESETS = ['일하는중', '출근중', '식사중', '공부중', '휴식중', '회의중', '자리비움', '게임중', '음악감상'];
+const PRESETS = ['일하는중', '출근중', '식사중', '공부중', '휴식중', '회의중', '자리비움', '게임중', '음악감상', '오프라인'];
 
 export const StatusPicker: React.FC<StatusPickerProps> = ({ currentStatus, onStatusChange }) => {
   const [isOpen, setIsOpen] = useState(false);

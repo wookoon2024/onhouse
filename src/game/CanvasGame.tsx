@@ -1011,7 +1011,15 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
         const charDrawX = Math.round(player.x * tileScale);
         const charDrawY = Math.round(player.y * tileScale);
 
+        const isOffline = !player.isOnline || player.statusMessage === '오프라인';
+
         ctx.save();
+
+        if (isOffline) {
+          ctx.filter = 'grayscale(100%) opacity(0.45)';
+        } else {
+          ctx.filter = 'none';
+        }
 
         if (maxRows === 1) {
           // For 1-row sprites like pig.png (default image faces LEFT):
@@ -1055,6 +1063,7 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
           );
         }
 
+        ctx.filter = 'none';
         ctx.restore();
 
         ctx.save();
@@ -1064,17 +1073,18 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
         const headCenterX = charDrawX + vSize / 2;
         let currentY = charDrawY - 8; // Start right above player head sprite
 
-        // 1. Draw Nickname (Bottom-most HUD element right above head)
+        // 1. Draw Nickname (Bottom-most HUD element right above head with 📱 mobile icon if on mobile)
         ctx.font = '10px "DungGeunMo", monospace';
-        const nameText = player.nickname;
+        const isMobileUser = player.isMobile;
+        const nameText = `${isMobileUser ? '📱 ' : ''}${player.nickname}`;
         const nameWidth = ctx.measureText(nameText).width + 8;
         
-        ctx.fillStyle = 'rgba(15, 15, 25, 0.75)';
+        ctx.fillStyle = isOffline ? 'rgba(30, 30, 40, 0.85)' : 'rgba(15, 15, 25, 0.75)';
         ctx.fillRect(headCenterX - nameWidth / 2, currentY - 7, nameWidth, 14);
 
         ctx.fillStyle = player.id === localPlayerRef.current.id 
-          ? '#f5c2e7'
-          : (player.isOnline ? '#ffffff' : '#8c8c9c');
+          ? (isOffline ? '#d0a0c0' : '#f5c2e7')
+          : (!isOffline ? '#ffffff' : '#a6adc8');
         ctx.fillText(nameText, headCenterX, currentY);
 
         currentY -= 16; // Move Y up for next layer

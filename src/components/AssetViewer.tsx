@@ -126,8 +126,12 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
     }
   });
 
-  const mapOptions = [...DEFAULT_MAP_TILESETS, ...customMapTilesets];
-  const charOptions = [...DEFAULT_CHARACTER_SPRITES, ...customCharSprites].map((opt) => {
+  const mapOptions = Array.from(
+    new Map([...DEFAULT_MAP_TILESETS, ...customMapTilesets].map((m) => [m.id, m])).values()
+  );
+  const charOptions = Array.from(
+    new Map([...DEFAULT_CHARACTER_SPRITES, ...customCharSprites].map((c) => [c.id, c])).values()
+  ).map((opt) => {
     const override = charImageOverrides[opt.id];
     if (override) {
       return { ...opt, url: override.url, rows: override.rows, cols: override.cols, size: opt.size || 16 };
