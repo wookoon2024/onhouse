@@ -202,6 +202,7 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
   const localPlayerRef = useRef<PlayerState>(localPlayer);
   const lastTimeRef = useRef<number>(performance.now());
   const lastSyncTimeRef = useRef<number>(0);
+  const smoothRemotePosRef = useRef<Record<string, { x: number; y: number; isMoving: boolean }>>({});
 
   useEffect(() => {
     // Only sync position from prop if map changed or if player is NOT moving locally
@@ -678,7 +679,37 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
 
       Object.values(otherPlayers).forEach((op) => {
         if (op.mapId === currentMapId && op.id !== p.id && op.nickname !== p.nickname) {
-          renderList.push(op);
+          let smooth = smoothRemotePosRef.current[op.id];
+          if (!smooth) {
+            smooth = { x: op.x, y: op.y, isMoving: op.isMoving };
+            smoothRemotePosRef.current[op.id] = smooth;
+          }
+
+          const dx = op.x - smooth.x;
+          const dy = op.y - smooth.y;
+          const dist = Math.hypot(dx, dy);
+
+          // If distance is large (teleport / map change / initial join), snap position immediately
+          if (dist > 160) {
+            smooth.x = op.x;
+            smooth.y = op.y;
+            smooth.isMoving = op.isMoving;
+          } else {
+            // Smooth 60 FPS exponential LERP interpolation for buttery smooth movement
+            const lerpFactor = 0.28;
+            smooth.x += dx * lerpFactor;
+            smooth.y += dy * lerpFactor;
+
+            // Animate walking legs if remaining distance exists or target is moving
+            smooth.isMoving = dist > 0.5 || op.isMoving;
+          }
+
+          renderList.push({
+            ...op,
+            x: smooth.x,
+            y: smooth.y,
+            isMoving: smooth.isMoving
+          });
         }
       });
 
