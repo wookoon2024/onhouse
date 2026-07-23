@@ -313,3 +313,23 @@ export const saveHouseAssetToDB = async (houseCode: string, assetType: 'map_tile
     return { success: false, error: err?.message || 'DB 에셋 저장 실패' };
   }
 };
+
+// Delete custom asset from Supabase DB
+export const deleteHouseAssetFromDB = async (houseCode: string, assetType: 'map_tileset' | 'char_sprite', assetId: string) => {
+  try {
+    const { error } = await supabase
+      .from('house_assets')
+      .delete()
+      .eq('house_code', houseCode)
+      .eq('asset_type', assetType)
+      .filter('asset_data->>id', 'eq', assetId);
+
+    if (error) {
+      console.warn('Failed to delete asset from DB:', error.message);
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error in deleteHouseAssetFromDB:', err);
+    return { success: false };
+  }
+};

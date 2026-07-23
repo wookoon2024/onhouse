@@ -101,14 +101,15 @@ export function getDyedSprite(
     // Convert to HSL
     const [h, s, l] = rgbToHsl(r, g, b);
 
-    // Target the BLUE color range (typically 180 to 260 degrees in HSL)
-    // Both ninja_blue and samurai_blue clothes are prominently in this range.
+    // Preserve skin tones (typically 10° to 45° in HSL with medium-high lightness)
+    const isSkinTone = h >= 10 && h <= 45 && l >= 0.35 && l <= 0.88;
+
     let finalR = r;
     let finalG = g;
     let finalB = b;
 
-    if (h >= 170 && h <= 265 && s > 0.15) {
-      // Shift hue
+    // Shift hue for non-skin pixels with color saturation (s > 0.12) on ALL characters!
+    if (!isSkinTone && s > 0.12 && hueOffset !== 0) {
       const shiftedHue = (h + hueOffset) % 360;
       const [newR, newG, newB] = hslToRgb(shiftedHue, s, l);
       finalR = newR;

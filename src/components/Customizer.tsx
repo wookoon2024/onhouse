@@ -97,7 +97,7 @@ export const Customizer: React.FC<CustomizerProps> = ({ player, onChange, onClos
         </div>
       </div>
 
-      {/* Sprite Type selection (Includes ALL custom & default characters!) */}
+      {/* Sprite Type selection (Includes Dropdown Selectbox & Grid Buttons) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <label className="pixel-text" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -107,9 +107,29 @@ export const Customizer: React.FC<CustomizerProps> = ({ player, onChange, onClos
             총 {allCharOptions.length}종
           </span>
         </div>
+
+        {/* Dropdown Selectbox for Character Selection */}
+        <select
+          value={player.spriteType}
+          onChange={(e) => onChange({ spriteType: e.target.value })}
+          style={{
+            width: '100%', background: '#0d0d12', border: '1px solid var(--accent)',
+            borderRadius: '6px', padding: '10px 12px', color: '#fff', fontSize: '12px',
+            fontWeight: 'bold', outline: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+          }}
+        >
+          {allCharOptions.map((char) => (
+            <option key={char.id} value={char.id}>
+              {char.name.startsWith('👤') || char.name.startsWith('⚔️') || char.name.startsWith('🥷') || char.name.startsWith('🌿') || char.name.startsWith('🐷') || char.name.startsWith('🐶')
+                ? char.name
+                : `👤 ${char.name}`}
+            </option>
+          ))}
+        </select>
+
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px',
-          maxHeight: '200px', overflowY: 'auto', paddingRight: '4px'
+          maxHeight: '160px', overflowY: 'auto', paddingRight: '4px'
         }}>
           {allCharOptions.map((char) => {
             const isCustom = !DEFAULT_CHARACTERS.some(d => d.id === char.id);
@@ -178,7 +198,7 @@ export const Customizer: React.FC<CustomizerProps> = ({ player, onChange, onClos
           />
         </div>
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-          * 캐릭터 옷과 깃털의 색상이 염색됩니다. 피부와 머리카락의 톤은 자연스럽게 보존됩니다.
+          * 염색 원리: 피부톤(살구색)을 보존하고 의상, 머리카락, 장식 픽셀의 색상(Hue)을 0°~360°로 실시간 전환합니다.
         </p>
       </div>
     </div>

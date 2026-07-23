@@ -5,7 +5,7 @@ import {
   Copy, Clipboard, Trash, Crop, Check, Move, FlipHorizontal
 } from 'lucide-react';
 import { DEFAULT_CHAR_ROW_ACTIONS, getCharRowActions } from '../game/MapData';
-import { saveHouseAssetToDB, getSavedHouseCode } from '../services/HouseService';
+import { saveHouseAssetToDB, deleteHouseAssetFromDB, getSavedHouseCode } from '../services/HouseService';
 import { supabase } from '../lib/supabase';
 
 import interiorTilesUrl from '../assets/interior_tiles.png';
@@ -184,6 +184,7 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
   const [cropZoom, setCropZoom] = useState<number>(1.0); // Zoom scale (0.5x, 1x, 2x, 3x, 4x)
   const [isBoxDragging, setIsBoxDragging] = useState<boolean>(false);
   const [boxDragStart, setBoxDragStart] = useState<{ startX: number; startY: number; initRectX: number; initRectY: number } | null>(null);
+  const cropViewportRef = useRef<HTMLDivElement | null>(null);
 
   // New Action Row Prompt State
   const [showAddRowModal, setShowAddRowModal] = useState<boolean>(false);
@@ -293,6 +294,22 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
     window.addEventListener('keydown', handleCropKeyDown);
     return () => window.removeEventListener('keydown', handleCropKeyDown);
   }, [cropModalImage, cropImgWidth, cropImgHeight]);
+
+  // Auto-scroll crop viewport container so pink crop box is immediately visible without manual scrolling!
+  useEffect(() => {
+    if (!cropModalImage || !cropViewportRef.current) return;
+    const timer = setTimeout(() => {
+      if (!cropViewportRef.current) return;
+      const targetY = cropRect.y * cropZoom;
+      const targetX = cropRect.x * cropZoom;
+      const containerH = cropViewportRef.current.clientHeight || 300;
+      const containerW = cropViewportRef.current.clientWidth || 470;
+
+      cropViewportRef.current.scrollTop = Math.max(0, targetY - containerH / 2 + (cropRect.w * cropZoom) / 2);
+      cropViewportRef.current.scrollLeft = Math.max(0, targetX - containerW / 2 + (cropRect.w * cropZoom) / 2);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [cropModalImage, cropRect.x, cropRect.y, cropZoom]);
 
   // Click outside listener for context menu
   useEffect(() => {
@@ -407,25 +424,71 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
     mainImg.src = currentOption.url;
   };
 
-  // 🗑️ Delete/Clear Specific Frame Tile (Clears specified frame slot to transparent)
+  // 🗑️ Delete/Clear Specific Frame Tile
+  // Rule (Req 7): "프레임삭제하기 눌렀을떄 그 행포함 그 행뒤로 모든 프레임이 없으면 그행은 삭제"
   const handleDeleteFrameColumn = (col: number, row: number) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const tileW = Math.max(16, Math.floor(img.width / currentOption.cols));
-      const tileH = Math.max(16, Math.floor(img.height / currentOption.rows));
+      const cols = currentOption.cols;
+      const rows = currentOption.rows;
+      const tileW = Math.max(16, Math.floor(img.width / cols));
+      const tileH = Math.max(16, Math.floor(img.height / rows));
+
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Copy full original image
+      // 1. Draw full image
       ctx.drawImage(img, 0, 0);
 
-      // Clear ONLY the target (col, row) frame slot to transparent
+      // 2. Clear target frame slot
       ctx.clearRect(col * tileW, row * tileH, tileW, tileH);
 
+      // 3. Scan row pixels to check remaining frames
+      const rowImgData = ctx.getImageData(0, row * tileH, img.width, tileH);
+      const data = rowImgData.data;
+
+      const isFrameNonEmpty = (c: number): boolean => {
+        const startX = c * tileW;
+        for (let y = 0; y < tileH; y++) {
+          for (let x = 0; x < tileW; x++) {
+            const idx = (y * img.width + (startX + x)) * 4;
+            if (data[idx + 3] > 15) return true;
+          }
+        }
+        return false;
+      };
+
+      // Check if any frame exists at or after `col` in this row
+      let hasFramesAtOrAfterCol = false;
+      for (let c = col; c < cols; c++) {
+        if (isFrameNonEmpty(c)) {
+          hasFramesAtOrAfterCol = true;
+          break;
+        }
+      }
+
+      // Check if any frame exists anywhere in this row
+      let hasAnyFrameInRow = false;
+      for (let c = 0; c < cols; c++) {
+        if (isFrameNonEmpty(c)) {
+          hasAnyFrameInRow = true;
+          break;
+        }
+      }
+
+      setContextMenuTile(null);
+
+      // Rule: If no frames exist at or after `col` in this row, or if the row is empty: delete that action row!
+      if ((!hasFramesAtOrAfterCol || !hasAnyFrameInRow) && rows > 1) {
+        handleDeleteActionRow(row);
+        return;
+      }
+
+      // Otherwise, save updated sprite sheet
       const updatedUrl = canvas.toDataURL();
       setCharImageOverrides((prev) => ({
         ...prev,
@@ -436,8 +499,6 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
           size: tileW
         }
       }));
-
-      setContextMenuTile(null);
     };
     img.src = currentOption.url;
   };
@@ -1241,15 +1302,37 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
   };
 
   // Delete custom asset
-  const handleDeleteCustomAsset = (id: string) => {
-    if (!window.confirm("정말로 이 커스텀 에셋을 삭제하시겠습니까?")) return;
+  const handleDeleteCustomAsset = async (id: string) => {
+    if (!window.confirm("정말로 이 커스텀 에셋을 영구 삭제하시겠습니까?")) return;
+
+    const currentHouse = getSavedHouseCode();
+
     if (activeTab === 'map') {
-      setCustomMapTilesets((prev) => prev.filter((opt) => opt.id !== id));
+      setCustomMapTilesets((prev) => {
+        const next = prev.filter((opt) => opt.id !== id);
+        localStorage.setItem('on_house_custom_map_tilesets', JSON.stringify(next));
+        return next;
+      });
       setSelectedMapId('interior');
+      await deleteHouseAssetFromDB(currentHouse, 'map_tileset', id);
     } else {
-      setCustomCharSprites((prev) => prev.filter((opt) => opt.id !== id));
+      setCustomCharSprites((prev) => {
+        const next = prev.filter((opt) => opt.id !== id);
+        localStorage.setItem('on_house_custom_char_sprites', JSON.stringify(next));
+        return next;
+      });
+      setCharImageOverrides((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        localStorage.setItem('on_house_char_image_overrides', JSON.stringify(next));
+        return next;
+      });
       setSelectedCharId('samurai_blue');
+      await deleteHouseAssetFromDB(currentHouse, 'char_sprite', id);
     }
+
+    // Broadcast sprite cache update event
+    window.dispatchEvent(new Event('on_house_sprites_updated'));
   };
 
   // Export & Import All App Backup Data
@@ -1414,37 +1497,6 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
             >
               <Plus size={13} /> 추가
             </button>
-
-            <button
-              onClick={handleExportBackup}
-              title="작성한 모든 맵/에셋/캐릭터를 .json 파일로 PC에 즉시 백업 저장"
-              style={{
-                padding: '6px 10px', fontSize: '11px', borderRadius: '6px',
-                background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa',
-                border: '1px solid rgba(96, 165, 250, 0.3)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold'
-              }}
-            >
-              <Download size={12} /> 백업 저장
-            </button>
-
-            <label
-              title="저장했던 .json 백업 파일에서 복원"
-              style={{
-                padding: '6px 10px', fontSize: '11px', borderRadius: '6px',
-                background: 'rgba(16, 185, 129, 0.15)', color: '#34d399',
-                border: '1px solid rgba(52, 211, 153, 0.3)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold'
-              }}
-            >
-              <Upload size={12} /> 백업 복원
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleImportBackup}
-                style={{ display: 'none' }}
-              />
-            </label>
           </div>
 
           {/* 4. Grid Zoom Scale Selector */}
@@ -2299,11 +2351,14 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
             </div>
 
             {/* Scrollable Image Viewport Canvas Container */}
-            <div style={{
-              width: '100%', height: '300px', overflow: 'auto',
-              background: '#0d0d12', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
-              position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '24px'
-            }}>
+            <div
+              ref={cropViewportRef}
+              style={{
+                width: '100%', height: '300px', overflow: 'auto',
+                background: '#0d0d12', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
+                position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '24px'
+              }}
+            >
               {/* Scaled Exact Pixel Image Container */}
               <div
                 onClick={handleCropContainerClick}

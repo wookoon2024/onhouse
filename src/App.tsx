@@ -2250,36 +2250,6 @@ export default function App() {
               <span>{houseCode}</span>
             </button>
 
-            {/* Quick Share Link Button */}
-            <button
-              onClick={() => {
-                const shareUrl = `${window.location.origin}${window.location.pathname}?house=${houseCode}`;
-                try {
-                  navigator.clipboard.writeText(shareUrl);
-                } catch (e) {
-                  const textarea = document.createElement('textarea');
-                  textarea.value = shareUrl;
-                  document.body.appendChild(textarea);
-                  textarea.select();
-                  document.execCommand('copy');
-                  document.body.removeChild(textarea);
-                }
-                showToast(`온하우스 [${houseCode}] 방 바로가기 URL이 클립보드에 복사되었습니다! 🔗`);
-              }}
-              style={{
-                background: 'rgba(139, 92, 246, 0.35)',
-                border: '1px solid var(--accent)',
-                color: '#fff',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px',
-                padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold',
-                whiteSpace: 'nowrap', flexShrink: 0
-              }}
-              title="친구 초대를 위한 방 바로가기 URL 복사"
-            >
-              <Share2 size={11} />
-              <span>초대링크</span>
-            </button>
-
             <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.15)' }} />
 
             <div style={{ fontSize: '11px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px' }}>
