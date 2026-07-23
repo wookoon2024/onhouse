@@ -1010,79 +1010,7 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
         }
       }
 
-      // 2. Draw Decoration Layer
-      for (let ty = 0; ty < map.height; ty++) {
-        for (let tx = 0; tx < map.width; tx++) {
-          const tileIdx = map.decorLayer[ty][tx];
-          const drawInfo = getTileDrawInfo(tileIdx, map.tileset);
-          if (drawInfo) {
-            const img = images[drawInfo.tilesetKey];
-            if (img) {
-              const tsInfo = getTilesetInfo(drawInfo.tilesetKey);
-              const tileW = Math.max(1, Math.floor(img.width / tsInfo.cols));
-              const tileH = Math.max(1, Math.floor(img.height / tsInfo.rows));
-              const srcX = (drawInfo.localIdx % tsInfo.cols) * tileW;
-              const srcY = Math.floor(drawInfo.localIdx / tsInfo.cols) * tileH;
-              ctx.drawImage(
-                img,
-                srcX, srcY, tileW, tileH,
-                tx * vSize, ty * vSize, vSize, vSize
-              );
-            }
-          }
-        }
-      }
-
-      // 2.5 Draw Map Memos Layer (Clean icon and shadow ONLY - NO text tag above!)
-      if (!isEditMode && memos && memos.length > 0) {
-        memos.forEach((memo) => {
-          if (memo.mapId !== currentMapId) return;
-
-          const screenX = memo.x * tileScale;
-          const screenY = memo.y * tileScale;
-          const bounceY = Math.sin(Date.now() / 250) * 3;
-
-          ctx.save();
-          // Drop Shadow
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-          ctx.beginPath();
-          ctx.ellipse(screenX + vSize / 2, screenY + vSize - 2, 8, 4, 0, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Floating Memo Envelope Icon (NO text tag above!)
-          ctx.font = `${Math.max(14, 14 * (tileScale / 2))}px sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(
-            memo.memoType === 'notice' ? '📢' : '📝',
-            screenX + vSize / 2,
-            screenY + vSize / 2 - 4 + bounceY
-          );
-
-          ctx.restore();
-        });
-      }
-
-        // 3. Draw Collision Debug Overlay (only in edit mode, red translucent blocks)
-        if (isEditMode) {
-          ctx.fillStyle = 'rgba(243, 139, 168, 0.2)';
-          ctx.strokeStyle = 'rgba(243, 139, 168, 0.5)';
-          ctx.lineWidth = 1;
-          for (let ty = 0; ty < map.height; ty++) {
-            for (let tx = 0; tx < map.width; tx++) {
-              if (map.collision[ty][tx]) {
-                ctx.fillRect(tx * vSize, ty * vSize, vSize, vSize);
-                ctx.strokeRect(tx * vSize, ty * vSize, vSize, vSize);
-              }
-            }
-          }
-
-          // Render Brush preview under the cursor (white dashed frame)
-          // We'll compute cursor tile position from mouse coordinates in React state if needed,
-          // but right now standard drawing works.
-        }
-
-      // 4. Render Characters (Y-Sorted)
+      // 2. Prepare Y-Sorted Characters List
       const renderList: PlayerState[] = [p];
 
       Object.values(otherPlayers).forEach((op) => {
@@ -1097,18 +1025,14 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
           const dy = op.y - smooth.y;
           const dist = Math.hypot(dx, dy);
 
-          // If distance is large (teleport / map change / initial join), snap position immediately
           if (dist > 160) {
             smooth.x = op.x;
             smooth.y = op.y;
             smooth.isMoving = op.isMoving;
           } else {
-            // Smooth 60 FPS exponential LERP interpolation for buttery smooth movement
             const lerpFactor = 0.28;
             smooth.x += dx * lerpFactor;
             smooth.y += dy * lerpFactor;
-
-            // Animate walking legs if remaining distance exists or target is moving
             smooth.isMoving = dist > 0.5 || op.isMoving;
           }
 
@@ -1129,7 +1053,8 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
 
       renderList.sort((a, b) => a.y - b.y);
 
-      renderList.forEach((player) => {
+      // Helper to render a single player on canvas
+      const renderPlayer = (player: PlayerState) => {
         const spriteSheet = images[player.spriteType] || images['ninja_blue'];
         if (!spriteSheet) return;
 
@@ -1146,7 +1071,7 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
         const isEmoting = !!(player.emoteUntil && Date.now() < player.emoteUntil && player.currentEmote);
         const charRowActions = getCharRowActions(player.spriteType);
 
-        // Check if player's current statusMessage matches any registered character action row (e.g., "공부중", "일하는중", "회의중")
+        // Check if player's current statusMessage matches any registered character action row
         const statusText = player.statusMessage ? player.statusMessage.trim() : '';
         const statusRowIdx = statusText
           ? charRowActions.findIndex(
@@ -1166,37 +1091,31 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
         let row = 0; // Idle frame (Row 0 = 대기)
 
         if (isEmoting && player.currentEmote) {
-          // Play custom emote action row if matched!
           const emoteRowIdx = charRowActions.findIndex(act => act === player.currentEmote);
           if (emoteRowIdx >= 0 && emoteRowIdx < maxRows) {
             row = emoteRowIdx;
           } else {
-            row = Math.min(6, maxRows - 1); // fallback
+            row = Math.min(6, maxRows - 1);
           }
-          // Animate & loop through all column frames (0, 1, 2, 3...) of this emote row!
           col = maxCols > 1 ? Math.floor(Date.now() / 140) % maxCols : 0;
         } else if (player.isMoving) {
           if (maxRows > 1) {
-            // Walk animation cycles through Rows 1, 2, 3 (걷기1, 걷기2, 걷기3)
             const walkCycle = [1, 2, 3, 2];
             const walkIdx = Math.floor(Date.now() / 120) % walkCycle.length;
             row = Math.min(walkCycle[walkIdx], maxRows - 1);
             col = col % maxCols;
           } else {
-            // For 1-row sprites like pig.png (32x16), alternate between column 0 and 1 while walking
             row = 0;
             col = Math.floor(Date.now() / 150) % maxCols;
           }
         } else if (statusRowIdx >= 0 && statusRowIdx < maxRows) {
-          // Play registered status action animation loop (e.g., "공부중", "일하는중", "회의중", "식사중")!
           row = statusRowIdx;
           col = maxCols > 1 ? Math.floor(Date.now() / 180) % maxCols : 0;
         } else {
-          row = 0; // Idle (Row 0 = 대기)
+          row = 0;
           col = col % maxCols;
         }
 
-        // Clamp safely within valid image pixel bounds
         col = Math.min(col, maxCols - 1);
         row = Math.min(row, maxRows - 1);
 
@@ -1213,7 +1132,6 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
           ctx.filter = 'none';
         }
 
-        // Get custom configured display size for this specific player (default 16px tile scale)
         const baseCharSize = player.charSize || getCharDisplaySize(player.spriteType) || 16;
         const charDrawW = Math.round((baseCharSize / 16) * vSize);
         const charDrawH = Math.round((baseCharSize / 16) * vSize);
@@ -1222,29 +1140,23 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
         const drawY = Math.round(charDrawY - (charDrawH - vSize));
 
         if (maxRows === 1) {
-          // For 1-row sprites like pig.png (default image faces LEFT):
           const centerX = drawX + charDrawW / 2;
           const centerY = drawY + charDrawH / 2;
           ctx.translate(centerX, centerY);
 
-          // 1. Correct Left/Right Flip (Default pig faces Left -> Flip when moving Right)
           if (player.dir === 'right') {
             ctx.scale(-1, 1);
           }
 
-          // 2. Up / Down Direction Visual Cues & Cute Waddling
           if (player.dir === 'up') {
-            // Tilts upward (-12 deg) + energetic upward stretch
             const waddle = player.isMoving ? Math.sin(Date.now() / 80) * 0.1 : 0;
             ctx.rotate(-0.2 + waddle);
             ctx.scale(0.95, 1.05);
           } else if (player.dir === 'down') {
-            // Tilts downward (+12 deg) + cute downward squish
             const waddle = player.isMoving ? Math.sin(Date.now() / 80) * 0.1 : 0;
             ctx.rotate(0.2 + waddle);
             ctx.scale(1.05, 0.95);
           } else if (player.isMoving) {
-            // Left/Right walking cute waddle bounce
             const waddle = Math.sin(Date.now() / 70) * 0.12;
             ctx.rotate(waddle);
           }
@@ -1255,7 +1167,6 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
             -charDrawW / 2, -charDrawH / 2, charDrawW, charDrawH
           );
         } else {
-          // Standard multi-row character sprites (rendered at custom character display size!)
           ctx.drawImage(
             dyedSpriteSheet,
             col * tileW, row * tileH, tileW, tileH,
@@ -1271,9 +1182,8 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
         ctx.textAlign = 'center';
 
         const headCenterX = drawX + charDrawW / 2;
-        let currentY = drawY - 8; // Start right above player head sprite
+        let currentY = drawY - 8;
 
-        // 1. Draw Nickname (Bottom-most HUD element right above head with 📱 mobile icon if on mobile)
         ctx.font = '10px "DungGeunMo", monospace';
         const isMobileUser = player.isMobile;
         const nameText = `${isMobileUser ? '📱 ' : ''}${player.nickname}`;
@@ -1287,9 +1197,8 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
           : (!isOffline ? '#ffffff' : '#a6adc8');
         ctx.fillText(nameText, headCenterX, currentY);
 
-        currentY -= 16; // Move Y up for next layer
+        currentY -= 16;
 
-        // 1.2 Draw "(F) 상호작용" Quick Counter-Reaction prompt if active for local player
         if (player.id === localPlayerRef.current.id && reactionPrompt && Date.now() < reactionPrompt.expiresAt) {
           ctx.font = 'bold 11px "DungGeunMo", monospace';
           const promptText = `(F) 상호작용 ${reactionPrompt.emoji}`;
@@ -1311,7 +1220,6 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
           currentY -= 18;
         }
 
-        // 1.5 Draw Emote Badge if active
         if (isEmoting && player.currentEmote) {
           ctx.font = '10px "DungGeunMo", monospace';
           const emoteDisplay = `✨ [${player.currentEmote}]`;
@@ -1328,7 +1236,6 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
           currentY -= 16;
         }
 
-        // 2. Draw Status Badge (Middle HUD element above nickname if present)
         const statusMsg = player.statusMessage;
         if (statusMsg) {
           ctx.font = '10px "DungGeunMo", monospace';
@@ -1343,19 +1250,17 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
           ctx.fillStyle = '#ffffff';
           ctx.fillText(statusDisplay, headCenterX, currentY);
 
-          currentY -= 16; // Move Y up for speech bubble
+          currentY -= 16;
         }
 
-        // 3. Draw Chat Bubble (Top-most HUD element above status/name with zero overlap!)
         const chat = chatBubbles[player.id];
         if (chat && Date.now() - chat.time < 4000 && !chat.text.startsWith('/')) {
           ctx.font = '11px Arial';
           const padding = 8;
           const bubbleWidth = ctx.measureText(chat.text).width + padding * 2;
           const bubbleHeight = 22;
-          const bubbleY = currentY - 10; // Position bubble safely above
+          const bubbleY = currentY - 10;
 
-          // White rounded chat bubble box
           ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
           ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
           ctx.lineWidth = 1;
@@ -1365,7 +1270,6 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
           ctx.fill();
           ctx.stroke();
 
-          // Bubble pointer triangle pointing downwards
           ctx.beginPath();
           ctx.moveTo(headCenterX - 4, bubbleY + bubbleHeight / 2);
           ctx.lineTo(headCenterX, bubbleY + bubbleHeight / 2 + 4);
@@ -1374,13 +1278,50 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
           ctx.fill();
           ctx.stroke();
 
-          // Message text inside bubble
           ctx.fillStyle = '#11111b';
           ctx.fillText(chat.text, headCenterX, bubbleY);
         }
 
         ctx.restore();
-      });
+      };
+
+      // 3. Render Layer 2 Decor Tiles & Players Interleaved Row by Row (Depth Y-Sorting!)
+      let renderPlayerIdx = 0;
+      for (let ty = 0; ty < map.height; ty++) {
+        // A. Render Layer 2 Decor Tiles for current row ty
+        for (let tx = 0; tx < map.width; tx++) {
+          const tileIdx = map.decorLayer[ty][tx];
+          const drawInfo = getTileDrawInfo(tileIdx, map.tileset);
+          if (drawInfo) {
+            const img = images[drawInfo.tilesetKey];
+            if (img) {
+              const tsInfo = getTilesetInfo(drawInfo.tilesetKey);
+              const tileW = Math.max(1, Math.floor(img.width / tsInfo.cols));
+              const tileH = Math.max(1, Math.floor(img.height / tsInfo.rows));
+              const srcX = (drawInfo.localIdx % tsInfo.cols) * tileW;
+              const srcY = Math.floor(drawInfo.localIdx / tsInfo.cols) * tileH;
+              ctx.drawImage(
+                img,
+                srcX, srcY, tileW, tileH,
+                tx * vSize, ty * vSize, vSize, vSize
+              );
+            }
+          }
+        }
+
+        // B. Render all players whose feet Y falls within or before current row ty
+        const rowBottomY = (ty + 1) * 16;
+        while (renderPlayerIdx < renderList.length && renderList[renderPlayerIdx].y < rowBottomY) {
+          renderPlayer(renderList[renderPlayerIdx]);
+          renderPlayerIdx++;
+        }
+      }
+
+      // Render any remaining players beyond bottom map boundary
+      while (renderPlayerIdx < renderList.length) {
+        renderPlayer(renderList[renderPlayerIdx]);
+        renderPlayerIdx++;
+      }
 
       // 4. Render Animated Visual Particles (Flying Hearts & Cheering Claps)
       const nowTime = performance.now();
