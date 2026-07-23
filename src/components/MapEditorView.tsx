@@ -159,7 +159,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
   const handleUndoRef = useRef<() => void>(() => {});
   const handleRedoRef = useRef<() => void>(() => {});
 
-  // Helper handlers for Smart Object Management (Steps 3 & 4)
+  // Helper handlers for Smart Object Management (Steps 3 & 4) - Non-destructive Layer Overlay
   const handleDeleteSelectedObject = (targetId?: string) => {
     const objId = targetId || selectedObjectId;
     if (!objId) return;
@@ -171,19 +171,25 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       const obj = prev.objects?.find(o => o.id === objId);
       if (!obj) return prev;
 
-      const newBase = prev.baseLayer.map(r => [...r]);
-      const newDecor = prev.decorLayer.map(r => [...r]);
       const newCollision = prev.collision.map(r => [...r]);
+      const newDecor = prev.decorLayer.map(r => [...r]);
+
+      const tsInfo = getTilesetInfoLocal(obj.tilesetKey);
 
       for (let ody = 0; ody < obj.height; ody++) {
         for (let odx = 0; odx < obj.width; odx++) {
           const ptx = obj.x + odx;
           const pty = obj.y + ody;
           if (ptx >= 0 && ptx < prev.width && pty >= 0 && pty < prev.height) {
-            if (obj.layer === 'base') newBase[pty][ptx] = -1;
-            else if (obj.layer === 'decor') {
-              newDecor[pty][ptx] = -1;
-              if (autoCollision) newCollision[pty][ptx] = false;
+            if (autoCollision) newCollision[pty][ptx] = false;
+
+            // Clean up any duplicate baked-in decor tiles left from previous versions
+            if (tsInfo) {
+              const localIdx = (obj.startRow + ody) * tsInfo.cols + (obj.startCol + odx);
+              const expectedTile = getPrefixedIndex(localIdx, obj.tilesetKey);
+              if (newDecor[pty][ptx] === expectedTile) {
+                newDecor[pty][ptx] = -1;
+              }
             }
           }
         }
@@ -191,7 +197,6 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
 
       return {
         ...prev,
-        baseLayer: newBase,
         decorLayer: newDecor,
         collision: newCollision,
         objects: (prev.objects || []).filter(o => o.id !== objId)
@@ -229,25 +234,15 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
     setRedoHistory([]);
 
     setLocalMap(prev => {
-      const newBase = prev.baseLayer.map(r => [...r]);
-      const newDecor = prev.decorLayer.map(r => [...r]);
       const newCollision = prev.collision.map(r => [...r]);
 
-      const tsInfo = getTilesetInfoLocal(pastedObj.tilesetKey);
-      if (tsInfo) {
+      if (autoCollision) {
         for (let ody = 0; ody < pastedObj.height; ody++) {
           for (let odx = 0; odx < pastedObj.width; odx++) {
             const ptx = destX + odx;
             const pty = destY + ody;
             if (ptx >= 0 && ptx < prev.width && pty >= 0 && pty < prev.height) {
-              const localIdx = (pastedObj.startRow + ody) * tsInfo.cols + (pastedObj.startCol + odx);
-              const tileToPaint = getPrefixedIndex(localIdx, pastedObj.tilesetKey);
-              if (pastedObj.layer === 'base') {
-                newBase[pty][ptx] = tileToPaint;
-              } else {
-                newDecor[pty][ptx] = tileToPaint;
-                if (autoCollision) newCollision[pty][ptx] = true;
-              }
+              newCollision[pty][ptx] = true;
             }
           }
         }
@@ -255,14 +250,14 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
 
       return {
         ...prev,
-        baseLayer: newBase,
-        decorLayer: newDecor,
         collision: newCollision,
         objects: [...(prev.objects || []), pastedObj]
       };
     });
 
     setSelectedObjectId(newId);
+    setTool('select');
+  };
     setTool('select');
   };
 
@@ -539,6 +534,39 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
             }
           }
         }
+      }
+
+      // 2.5 Objects Layer (MapObjectInstance[]) - Independent Entity Rendering
+      if (localMap.objects && localMap.objects.length > 0) {
+        const sortedObjects = [...localMap.objects].sort((a, b) => {
+          const rootA = a.y + a.height - 1;
+          const rootB = b.y + b.height - 1;
+          if (rootA !== rootB) return rootA - rootB;
+          return (a.zIndex || 0) - (b.zIndex || 0);
+        });
+
+        sortedObjects.forEach(obj => {
+          const img = images[obj.tilesetKey];
+          const tsInfo = getTilesetInfoLocal(obj.tilesetKey);
+          if (img && tsInfo) {
+            for (let ody = 0; ody < obj.height; ody++) {
+              for (let odx = 0; odx < obj.width; odx++) {
+                const targetTx = obj.x + odx;
+                const targetTy = obj.y + ody;
+                if (targetTx >= 0 && targetTx < localMap.width && targetTy >= 0 && targetTy < localMap.height) {
+                  const localIdx = (obj.startRow + ody) * tsInfo.cols + (obj.startCol + odx);
+                  const srcX = (localIdx % tsInfo.cols) * 16;
+                  const srcY = Math.floor(localIdx / tsInfo.cols) * 16;
+                  ctx.drawImage(
+                    img,
+                    srcX, srcY, 16, 16,
+                    targetTx * tileSize, targetTy * tileSize, tileSize, tileSize
+                  );
+                }
+              }
+            }
+          }
+        });
       }
     }
 
@@ -873,40 +901,43 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       if (!obj) return prev;
       if (obj.x === newTx && obj.y === newTy) return prev;
 
-      const newBase = prev.baseLayer.map(r => [...r]);
-      const newDecor = prev.decorLayer.map(r => [...r]);
       const newCollision = prev.collision.map(r => [...r]);
+      const newDecor = prev.decorLayer.map(r => [...r]);
 
-      // Erase old tiles
-      for (let ody = 0; ody < obj.height; ody++) {
-        for (let odx = 0; odx < obj.width; odx++) {
-          const oldX = obj.x + odx;
-          const oldY = obj.y + ody;
-          if (oldX >= 0 && oldX < prev.width && oldY >= 0 && oldY < prev.height) {
-            if (obj.layer === 'base') newBase[oldY][oldX] = -1;
-            else if (obj.layer === 'decor') {
-              newDecor[oldY][oldX] = -1;
-              if (autoCollision) newCollision[oldY][oldX] = false;
+      // Update collision grid if autoCollision is enabled
+      if (autoCollision) {
+        for (let ody = 0; ody < obj.height; ody++) {
+          for (let odx = 0; odx < obj.width; odx++) {
+            const oldX = obj.x + odx;
+            const oldY = obj.y + ody;
+            if (oldX >= 0 && oldX < prev.width && oldY >= 0 && oldY < prev.height) {
+              newCollision[oldY][oldX] = false;
             }
           }
         }
-      }
-
-      // Paint new tiles at new position
-      const tsInfo = getTilesetInfoLocal(obj.tilesetKey);
-      if (tsInfo) {
         for (let ody = 0; ody < obj.height; ody++) {
           for (let odx = 0; odx < obj.width; odx++) {
             const nX = newTx + odx;
             const nY = newTy + ody;
             if (nX >= 0 && nX < prev.width && nY >= 0 && nY < prev.height) {
+              newCollision[nY][nX] = true;
+            }
+          }
+        }
+      }
+
+      // Clean up any duplicate baked-in decor tiles left behind by old versions at old location
+      const tsInfo = getTilesetInfoLocal(obj.tilesetKey);
+      if (tsInfo) {
+        for (let ody = 0; ody < obj.height; ody++) {
+          for (let odx = 0; odx < obj.width; odx++) {
+            const oldX = obj.x + odx;
+            const oldY = obj.y + ody;
+            if (oldX >= 0 && oldX < prev.width && oldY >= 0 && oldY < prev.height) {
               const localIdx = (obj.startRow + ody) * tsInfo.cols + (obj.startCol + odx);
-              const tileToPaint = getPrefixedIndex(localIdx, obj.tilesetKey);
-              if (obj.layer === 'base') {
-                newBase[nY][nX] = tileToPaint;
-              } else {
-                newDecor[nY][nX] = tileToPaint;
-                if (autoCollision) newCollision[nY][nX] = true;
+              const expectedTile = getPrefixedIndex(localIdx, obj.tilesetKey);
+              if (newDecor[oldY][oldX] === expectedTile) {
+                newDecor[oldY][oldX] = -1;
               }
             }
           }
@@ -915,7 +946,6 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
 
       return {
         ...prev,
-        baseLayer: newBase,
         decorLayer: newDecor,
         collision: newCollision,
         objects: (prev.objects || []).map(o => o.id === objId ? { ...o, x: newTx, y: newTy } : o)
@@ -949,6 +979,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         startRow = Math.floor(drawInfo.localIdx / tsInfo.cols);
       }
 
+      const isMultiTileObject = (cols > 1 || rows > 1) && selectedTile !== -1 && editLayer !== 'collision';
+
       for (let dy = 0; dy < rows; dy++) {
         for (let dx = 0; dx < cols; dx++) {
           const ptx = tx + dx;
@@ -973,13 +1005,18 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                 tileToPaint = getOffsetTile(selectedTile, activeTileset, dx, dy);
               }
 
-              if (editLayer === 'base') {
-                newBase[pty][ptx] = tileToPaint;
-              } else if (editLayer === 'decor') {
-                newDecor[pty][ptx] = tileToPaint;
-                if (autoCollision) {
-                  newCollision[pty][ptx] = tileToPaint !== -1;
+              // Multi-tile objects go into objects layer without overwriting base/decor background!
+              if (!isMultiTileObject) {
+                if (editLayer === 'base') {
+                  newBase[pty][ptx] = tileToPaint;
+                } else if (editLayer === 'decor') {
+                  newDecor[pty][ptx] = tileToPaint;
+                  if (autoCollision) {
+                    newCollision[pty][ptx] = tileToPaint !== -1;
+                  }
                 }
+              } else if (autoCollision) {
+                newCollision[pty][ptx] = true;
               }
             }
           }
@@ -987,7 +1024,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       }
 
       let nextObjects = prev.objects ? [...prev.objects] : [];
-      if ((cols > 1 || rows > 1) && selectedTile !== -1 && editLayer !== 'collision') {
+      if (isMultiTileObject) {
         const newObj: MapObjectInstance = {
           id: `obj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
           tilesetKey: activeTileset,
@@ -1001,6 +1038,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           zIndex: Date.now()
         };
 
+        // Remove any exact overlapping same-origin object if replacing
         nextObjects = nextObjects.filter(o => !(o.x === tx && o.y === ty));
         nextObjects.push(newObj);
       }

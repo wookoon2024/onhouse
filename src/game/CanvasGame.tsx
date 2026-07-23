@@ -1308,10 +1308,8 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
 
       let renderPlayerIdx = 0;
       for (let ty = 0; ty < map.height; ty++) {
-        // A. Render Standalone Layer 2 Decor Tiles for current row ty (skipping object-owned tiles)
+        // A. Render Standalone Layer 2 Decor Tiles for current row ty
         for (let tx = 0; tx < map.width; tx++) {
-          if (objectTilesSet.has(`${tx}_${ty}`)) continue;
-
           const tileIdx = map.decorLayer[ty][tx];
           const drawInfo = getTileDrawInfo(tileIdx, map.tileset);
           if (drawInfo) {
