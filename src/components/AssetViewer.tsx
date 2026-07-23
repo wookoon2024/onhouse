@@ -202,7 +202,62 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
   useEffect(() => {
     try {
       localStorage.setItem('on_house_char_image_overrides', JSON.stringify(charImageOverrides));
-      // Notify game canvas to reload sprites
+
+      // Also update customCharSprites list in localStorage so custom sprites have the latest edited URL!
+      setCustomCharSprites((prev) => {
+        let changed = false;
+        const next = prev.map((opt) => {
+          const override = charImageOverrides[opt.id];
+          if (override && override.url && override.url !== opt.url) {
+            changed = true;
+            return {
+              ...opt,
+              url: override.url,
+              cols: override.cols || opt.cols,
+              rows: override.rows || opt.rows
+            };
+          }
+          return opt;
+        });
+        if (changed) {
+          localStorage.setItem('on_house_custom_char_sprites', JSON.stringify(next));
+        }
+        return changed ? next : prev;
+      });
+
+      // Save each override to Cloud DB & Broadcast to House Realtime channel!
+      const currentHouseCode = getSavedHouseCode();
+      Object.entries(charImageOverrides).forEach(([id, override]) => {
+        if (override && override.url) {
+          const foundOpt = customCharSprites.find((c) => c.id === id) || DEFAULT_CHARACTER_SPRITES.find((c) => c.id === id);
+          const assetData = {
+            id,
+            name: foundOpt?.name || id,
+            url: override.url,
+            cols: override.cols || foundOpt?.cols || 4,
+            rows: override.rows || foundOpt?.rows || 7,
+            size: override.size || 16,
+            isCustom: true
+          };
+
+          // Save to Supabase DB
+          saveHouseAssetToDB(currentHouseCode, 'char_sprite', assetData);
+
+          // Broadcast to Realtime channel
+          try {
+            supabase.channel(`house:${currentHouseCode}`).send({
+              type: 'broadcast',
+              event: 'asset_update',
+              payload: {
+                assetType: 'char_sprite',
+                assetData
+              }
+            });
+          } catch (e) {}
+        }
+      });
+
+      // Notify game canvas to reload sprites locally
       window.dispatchEvent(new Event('on_house_sprites_updated'));
     } catch (e) {
       console.warn('Failed to save char image overrides', e);

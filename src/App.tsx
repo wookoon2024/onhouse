@@ -184,9 +184,24 @@ export default function App() {
   const getCustomCharData = (spriteType: string) => {
     try {
       const saved = localStorage.getItem('on_house_custom_char_sprites');
-      if (saved) {
-        const list = JSON.parse(saved);
-        return list.find((item: any) => item.id === spriteType) || null;
+      const overridesSaved = localStorage.getItem('on_house_char_image_overrides');
+      const list: any[] = saved ? JSON.parse(saved) : [];
+      const overrides = overridesSaved ? JSON.parse(overridesSaved) : {};
+
+      const found = list.find((item: any) => item.id === spriteType);
+      const override = overrides[spriteType];
+
+      if (override && override.url) {
+        return {
+          id: spriteType,
+          name: found?.name || spriteType,
+          url: override.url,
+          cols: override.cols || found?.cols || 4,
+          rows: override.rows || found?.rows || 7
+        };
+      }
+      if (found) {
+        return found;
       }
     } catch (e) {}
     return null;
@@ -275,16 +290,32 @@ export default function App() {
       .on('broadcast', { event: 'player_sync' }, ({ payload }) => {
         if (!payload || payload.id === deviceId.current) return;
 
-        // If player has custom char data, dynamically update local asset cache
+        // If player has custom char data, dynamically update local asset cache & overrides
         if (payload.customCharData && payload.customCharData.id && payload.customCharData.url) {
           try {
             const saved = localStorage.getItem('on_house_custom_char_sprites');
             const current: any[] = saved ? JSON.parse(saved) : [];
-            if (!current.some((item: any) => item.id === payload.customCharData.id)) {
-              const next = [...current, payload.customCharData];
-              localStorage.setItem('on_house_custom_char_sprites', JSON.stringify(next));
-              setAssetVersion((v) => v + 1);
+            const idx = current.findIndex((item: any) => item.id === payload.customCharData.id);
+            let next: any[];
+            if (idx >= 0) {
+              next = [...current];
+              next[idx] = { ...next[idx], ...payload.customCharData };
+            } else {
+              next = [...current, payload.customCharData];
             }
+            localStorage.setItem('on_house_custom_char_sprites', JSON.stringify(next));
+
+            const overridesSaved = localStorage.getItem('on_house_char_image_overrides');
+            const overrides = overridesSaved ? JSON.parse(overridesSaved) : {};
+            overrides[payload.customCharData.id] = {
+              url: payload.customCharData.url,
+              cols: payload.customCharData.cols || 4,
+              rows: payload.customCharData.rows || 7
+            };
+            localStorage.setItem('on_house_char_image_overrides', JSON.stringify(overrides));
+
+            window.dispatchEvent(new Event('on_house_sprites_updated'));
+            setAssetVersion((v) => v + 1);
           } catch (e) {}
         }
 
@@ -338,19 +369,45 @@ export default function App() {
         if (assetType === 'map_tileset') {
           const saved = localStorage.getItem('on_house_custom_map_tilesets');
           const current: any[] = saved ? JSON.parse(saved) : [];
-          if (!current.some((item: any) => item.id === assetData.id)) {
-            const next = [...current, assetData];
-            localStorage.setItem('on_house_custom_map_tilesets', JSON.stringify(next));
-            setAssetVersion((v) => v + 1);
+          const idx = current.findIndex((item: any) => item.id === assetData.id);
+          let next: any[];
+          if (idx >= 0) {
+            next = [...current];
+            next[idx] = { ...next[idx], ...assetData };
+          } else {
+            next = [...current, assetData];
           }
+          localStorage.setItem('on_house_custom_map_tilesets', JSON.stringify(next));
+          window.dispatchEvent(new Event('on_house_sprites_updated'));
+          setAssetVersion((v) => v + 1);
         } else if (assetType === 'char_sprite') {
           const saved = localStorage.getItem('on_house_custom_char_sprites');
           const current: any[] = saved ? JSON.parse(saved) : [];
-          if (!current.some((item: any) => item.id === assetData.id)) {
-            const next = [...current, assetData];
-            localStorage.setItem('on_house_custom_char_sprites', JSON.stringify(next));
-            setAssetVersion((v) => v + 1);
+          const idx = current.findIndex((item: any) => item.id === assetData.id);
+          let next: any[];
+          if (idx >= 0) {
+            next = [...current];
+            next[idx] = { ...next[idx], ...assetData };
+          } else {
+            next = [...current, assetData];
           }
+          localStorage.setItem('on_house_custom_char_sprites', JSON.stringify(next));
+
+          if (assetData.url) {
+            try {
+              const overridesSaved = localStorage.getItem('on_house_char_image_overrides');
+              const overrides = overridesSaved ? JSON.parse(overridesSaved) : {};
+              overrides[assetData.id] = {
+                url: assetData.url,
+                cols: assetData.cols || 4,
+                rows: assetData.rows || 7
+              };
+              localStorage.setItem('on_house_char_image_overrides', JSON.stringify(overrides));
+            } catch (e) {}
+          }
+
+          window.dispatchEvent(new Event('on_house_sprites_updated'));
+          setAssetVersion((v) => v + 1);
         }
       })
       .subscribe((status) => {
