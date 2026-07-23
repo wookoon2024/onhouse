@@ -1285,13 +1285,10 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
         ctx.restore();
       };
 
-      // 3. Render Players (Y-Sorted)
-      renderList.forEach((player) => {
-        renderPlayer(player);
-      });
-
-      // 4. Render Layer 2 Decor Tiles (Furniture, Trees, Roofs & Decorations OVER Players!)
+      // 3. Render Layer 2 Decor Tiles & Players Interleaved Row by Row (Y-Depth Sorting!)
+      let renderPlayerIdx = 0;
       for (let ty = 0; ty < map.height; ty++) {
+        // A. Render Layer 2 Decor Tiles for current row ty
         for (let tx = 0; tx < map.width; tx++) {
           const tileIdx = map.decorLayer[ty][tx];
           const drawInfo = getTileDrawInfo(tileIdx, map.tileset);
@@ -1311,6 +1308,19 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
             }
           }
         }
+
+        // B. Render all players whose feet Y falls within or before current row ty
+        const rowBottomY = (ty + 1) * 16;
+        while (renderPlayerIdx < renderList.length && renderList[renderPlayerIdx].y < rowBottomY) {
+          renderPlayer(renderList[renderPlayerIdx]);
+          renderPlayerIdx++;
+        }
+      }
+
+      // Render any remaining players beyond bottom map boundary
+      while (renderPlayerIdx < renderList.length) {
+        renderPlayer(renderList[renderPlayerIdx]);
+        renderPlayerIdx++;
       }
 
       // 4. Render Animated Visual Particles (Flying Hearts & Cheering Claps)
