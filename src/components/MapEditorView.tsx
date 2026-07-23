@@ -983,7 +983,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         startRow = Math.floor(drawInfo.localIdx / tsInfo.cols);
       }
 
-      const isMultiTileObject = (cols > 1 || rows > 1) && selectedTile !== -1 && editLayer !== 'collision';
+      const isMultiTileObject = (cols > 1 || rows > 1) && selectedTile !== -1 && editLayer === 'decor';
 
       for (let dy = 0; dy < rows; dy++) {
         for (let dx = 0; dx < cols; dx++) {
@@ -1015,6 +1015,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
               if (!isMultiTileObject) {
                 if (editLayer === 'base') {
                   newBase[pty][ptx] = tileToPaint;
+                  // Remove any accidental object at this tile when painting ground floor tiles
+                  nextObjects = nextObjects.filter(o => !(ptx >= o.x && ptx < o.x + o.width && pty >= o.y && pty < o.y + o.height));
                 } else if (editLayer === 'decor') {
                   newDecor[pty][ptx] = tileToPaint;
                   if (autoCollision) {
