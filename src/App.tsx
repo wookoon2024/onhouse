@@ -454,6 +454,32 @@ export default function App() {
           };
         });
       })
+      .on('broadcast', { event: 'heartbeat' }, ({ payload }) => {
+        if (!payload || !payload.id || payload.id === deviceId.current) return;
+        setOtherPlayers((prev) => {
+          const existing = prev[payload.id];
+          const isOfflineMsg = payload.player?.statusMessage === '오프라인';
+          if (!existing) {
+            return {
+              ...prev,
+              [payload.id]: {
+                ...payload.player,
+                isOnline: !isOfflineMsg,
+                lastActive: Date.now()
+              }
+            };
+          }
+          return {
+            ...prev,
+            [payload.id]: {
+              ...existing,
+              ...payload.player,
+              isOnline: !isOfflineMsg,
+              lastActive: Date.now()
+            }
+          };
+        });
+      })
       .on('broadcast', { event: 'request_player_sync' }, ({ payload }) => {
         if (!payload || payload.fromId === deviceId.current) return;
         // Reply with current local player state immediately!
@@ -726,18 +752,35 @@ export default function App() {
       }
     };
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        handleUnload();
-      }
-    };
-
     window.addEventListener('beforeunload', handleUnload);
     window.addEventListener('pagehide', handleUnload);
-    window.addEventListener('freeze', handleUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Heartbeat / Inactivity Timeout Monitor: Mark player as offline after 15s of inactivity
+    // 1. Periodic heartbeat ping (every 4s) to keep lastActive timestamp fresh across all clients
+    const heartbeatPingTimer = setInterval(() => {
+      const payload = {
+        id: deviceId.current,
+        player: {
+          ...localPlayerRef.current,
+          lastActive: Date.now()
+        }
+      };
+
+      bcRef.current?.postMessage({
+        type: 'heartbeat',
+        playerId: deviceId.current,
+        player: payload.player
+      });
+
+      try {
+        channel.send({
+          type: 'broadcast',
+          event: 'heartbeat',
+          payload
+        });
+      } catch (e) {}
+    }, 4000);
+
+    // 2. Heartbeat / Inactivity Timeout Monitor: Mark player as offline ONLY if no heartbeat for 45 seconds
     const offlineCheckTimer = setInterval(() => {
       const now = Date.now();
       setOtherPlayers((prev) => {
@@ -745,22 +788,21 @@ export default function App() {
         const next = { ...prev };
         for (const pid in next) {
           const p = next[pid];
-          if (p.isOnline && p.statusMessage !== '오프라인' && (now - (p.lastActive || 0) > 15000)) {
+          if (p.isOnline && p.statusMessage !== '오프라인' && (now - (p.lastActive || 0) > 45000)) {
             next[pid] = { ...p, isOnline: false, statusMessage: '오프라인' };
             updated = true;
           }
         }
         return updated ? next : prev;
       });
-    }, 5000);
+    }, 10000);
 
     return () => {
       handleUnload();
+      clearInterval(heartbeatPingTimer);
       clearInterval(offlineCheckTimer);
       window.removeEventListener('beforeunload', handleUnload);
       window.removeEventListener('pagehide', handleUnload);
-      window.removeEventListener('freeze', handleUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, [houseCode]);
@@ -922,6 +964,25 @@ export default function App() {
               }
             };
           });
+          break;
+
+        case 'heartbeat':
+          if (msg.playerId && msg.playerId !== deviceId.current) {
+            setOtherPlayers((prev) => {
+              const existing = prev[msg.playerId];
+              if (!existing) return prev;
+              const isOfflineMsg = msg.player?.statusMessage === '오프라인';
+              return {
+                ...prev,
+                [msg.playerId]: {
+                  ...existing,
+                  ...msg.player,
+                  isOnline: !isOfflineMsg,
+                  lastActive: Date.now()
+                }
+              };
+            });
+          }
           break;
 
         case 'leave':
