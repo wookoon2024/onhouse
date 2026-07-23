@@ -1118,10 +1118,19 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         tx >= o.x && tx < o.x + o.width && ty >= o.y && ty < o.y + o.height
       );
       if (clickedObj) {
-        setSelectedObjectId(clickedObj.id);
-        setIsDraggingObject(true);
-        setObjectDragStart({ originX: e.clientX, originY: e.clientY, startTx: clickedObj.x, startTy: clickedObj.y });
+        if (selectedObjectId === clickedObj.id) {
+          // Click again on already selected object -> DESELECT & FIX CLEANLY TO FLOOR!
+          setSelectedObjectId(null);
+          setIsDraggingObject(false);
+          setObjectDragStart(null);
+        } else {
+          // Select clicked object
+          setSelectedObjectId(clickedObj.id);
+          setIsDraggingObject(true);
+          setObjectDragStart({ originX: e.clientX, originY: e.clientY, startTx: clickedObj.x, startTy: clickedObj.y });
+        }
       } else {
+        // Click on empty tile -> DESELECT!
         setSelectedObjectId(null);
       }
       return;
@@ -1137,8 +1146,9 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       lastPaintedCellRef.current = { x: tx, y: ty };
       handlePaint(tx, ty);
 
-      // ALWAYS anchor placed object to floor & switch to 'select' mode!
+      // Clean anchor: clear stamp & deselect so object is cleanly fixed on floor!
       setPaletteSelection(null);
+      setSelectedObjectId(null);
       setTool('select');
     }
   };
