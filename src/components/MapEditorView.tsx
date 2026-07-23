@@ -1118,20 +1118,14 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         tx >= o.x && tx < o.x + o.width && ty >= o.y && ty < o.y + o.height
       );
       if (clickedObj) {
-        if (selectedObjectId === clickedObj.id) {
-          // Click again on already selected object -> DESELECT & FIX CLEANLY TO FLOOR!
-          setSelectedObjectId(null);
-          setIsDraggingObject(false);
-          setObjectDragStart(null);
-        } else {
-          // Select clicked object
-          setSelectedObjectId(clickedObj.id);
-          setIsDraggingObject(true);
-          setObjectDragStart({ originX: e.clientX, originY: e.clientY, startTx: clickedObj.x, startTy: clickedObj.y });
-        }
+        setSelectedObjectId(clickedObj.id);
+        setIsDraggingObject(true);
+        setObjectDragStart({ originX: e.clientX, originY: e.clientY, startTx: clickedObj.x, startTy: clickedObj.y });
       } else {
-        // Click on empty tile -> DESELECT!
+        // Click on empty ground -> DESELECT!
         setSelectedObjectId(null);
+        setIsDraggingObject(false);
+        setObjectDragStart(null);
       }
       return;
     }
