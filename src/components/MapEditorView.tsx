@@ -258,8 +258,6 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
     setSelectedObjectId(newId);
     setTool('select');
   };
-    setTool('select');
-  };
 
   const handleBringToFront = (objId?: string) => {
     const id = objId || selectedObjectId;
