@@ -136,6 +136,33 @@ export const saveHouseMapToDB = async (
   }
 };
 
+// Delete map permanently from Supabase DB & localStorage
+export const deleteHouseMapFromDB = async (
+  houseCode: string,
+  mapId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // 1. Remove from localStorage cache
+    localStorage.removeItem('on_house_map_' + mapId);
+
+    // 2. Delete from Supabase house_maps table
+    const { error } = await supabase
+      .from('house_maps')
+      .delete()
+      .eq('house_code', houseCode)
+      .eq('map_id', mapId);
+
+    if (error) {
+      console.error('Failed to delete map from Supabase:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error in deleteHouseMapFromDB:', err);
+    return { success: false, error: err?.message || 'DB 맵 삭제 중 예외 발생' };
+  }
+};
+
 // Fetch custom assets (map tilesets & character sprites) for house code
 export const fetchHouseAssets = async (houseCode: string) => {
   try {

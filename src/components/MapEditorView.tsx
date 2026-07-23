@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { type MapDefinition, maps, PRESET_MAP_TEMPLATES } from '../game/MapData';
-import { Trash2, Save, X, Undo, Redo, Pipette, Paintbrush, PaintBucket, Eraser, Info, Sparkles, Plus, Download, Upload } from 'lucide-react';
+import { Trash2, Save, X, Undo, Redo, Pipette, Paintbrush, PaintBucket, Eraser, Info, Sparkles, Plus, Download, Upload, Pencil } from 'lucide-react';
 import { getTileDrawInfo, getTilesetInfo } from '../game/CanvasGame';
 
 import interiorTilesUrl from '../assets/interior_tiles.png';
@@ -37,6 +37,7 @@ interface MapEditorViewProps {
   onSaveMap: (mapId: string, updatedMap: MapDefinition) => void;
   onAddMap: (presetId?: string, customName?: string) => void;
   onDeleteMap: (mapId: string) => void;
+  onRenameMap?: (mapId: string, newName: string) => void;
   onClose: () => void;
 }
 
@@ -46,6 +47,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
   onSaveMap,
   onAddMap,
   onDeleteMap,
+  onRenameMap,
   onClose
 }) => {
   const [selectedMapId, setSelectedMapId] = useState<string>(availableMapIds[0] || 'room');
@@ -941,6 +943,37 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                   {name}
                 </button>
 
+                {/* Rename button (✏️) */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newName = window.prompt(`'${name}' 맵의 새로운 이름을 입력하세요:`, name);
+                    if (newName && newName.trim() && newName.trim() !== name) {
+                      if (onRenameMap) {
+                        onRenameMap(mId, newName.trim());
+                      }
+                      if (mId === selectedMapId) {
+                        setLocalMap((prev) => ({ ...prev, name: newName.trim() }));
+                      }
+                    }
+                  }}
+                  title="맵 이름 변경"
+                  style={{
+                    background: 'none', border: 'none',
+                    color: 'rgba(255, 255, 255, 0.4)',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '2px', borderRadius: '4px', marginLeft: '2px'
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.color = '#89b4fa';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.color = 'rgba(255, 255, 255, 0.4)';
+                  }}
+                >
+                  <Pencil size={11} />
+                </button>
+
                 {/* Delete button (×) */}
                 <button
                   onClick={(e) => {
@@ -949,7 +982,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                       alert("최소 1개의 맵은 항상 유지되어야 합니다.");
                       return;
                     }
-                    if (window.confirm(`'${name}' 맵을 에디터 및 목록에서 삭제하시겠습니까?`)) {
+                    if (window.confirm(`'${name}' 맵을 에디터 및 서버 DB에서 영구 삭제하시겠습니까?`)) {
                       onDeleteMap(mId);
                       if (selectedMapId === mId) {
                         const remaining = availableMapIds.filter((id) => id !== mId);

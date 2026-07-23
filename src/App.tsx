@@ -22,7 +22,7 @@ import { AssetViewer } from './components/AssetViewer';
 import { HouseJoinModal } from './components/HouseJoinModal';
 import { PlayerInteractionModal } from './components/PlayerInteractionModal';
 import { DMRequestModal } from './components/DMRequestModal';
-import { getSavedHouseCode, setSavedHouseCode, fetchHouseMaps, saveHouseMapToDB, fetchHouseAssets } from './services/HouseService';
+import { getSavedHouseCode, setSavedHouseCode, fetchHouseMaps, saveHouseMapToDB, deleteHouseMapFromDB, fetchHouseAssets } from './services/HouseService';
 import { supabase } from './lib/supabase';
 import { APP_VERSION } from './config/version';
 
@@ -372,6 +372,24 @@ export default function App() {
           }
           return prev;
         });
+      })
+      .on('broadcast', { event: 'map_delete' }, ({ payload }) => {
+        if (!payload || !payload.mapId) return;
+        const targetMapId = payload.mapId;
+        
+        setAvailableMapIds((prev) => {
+          const next = prev.filter((id) => id !== targetMapId);
+          localStorage.setItem('on_house_available_map_ids', JSON.stringify(next));
+          return next;
+        });
+
+        setActiveMaps((prev) => {
+          const copy = { ...prev };
+          delete copy[targetMapId];
+          return copy;
+        });
+
+        localStorage.removeItem('on_house_map_' + targetMapId);
       })
       .on('broadcast', { event: 'asset_update' }, ({ payload }) => {
         if (!payload || !payload.assetType || !payload.assetData) return;
@@ -872,18 +890,74 @@ export default function App() {
     handleMapChange(newMapId);
   };
 
-  const handleDeleteMap = (mapId: string) => {
+  const handleDeleteMap = async (mapId: string) => {
     if (availableMapIds.length <= 1) {
       alert("최소 1개의 맵은 항상 유지되어야 합니다.");
       return;
     }
 
+    const mapName = activeMaps[mapId]?.name || mapId;
     const nextAvailable = availableMapIds.filter((id) => id !== mapId);
+
+    // Update local states
     setAvailableMapIds(nextAvailable);
+    localStorage.setItem('on_house_available_map_ids', JSON.stringify(nextAvailable));
+
+    setActiveMaps((prev) => {
+      const copy = { ...prev };
+      delete copy[mapId];
+      return copy;
+    });
+
+    // 1. Delete from localStorage cache
+    localStorage.removeItem('on_house_map_' + mapId);
+
+    // 2. Delete permanently from Supabase Cloud DB!
+    await deleteHouseMapFromDB(houseCode, mapId);
+
+    // 3. Broadcast map_delete event to all connected players in the House
+    try {
+      supabase.channel(`house:${houseCode}`).send({
+        type: 'broadcast',
+        event: 'map_delete',
+        payload: { mapId }
+      });
+    } catch (e) {}
 
     if (localPlayer.mapId === mapId) {
       handleMapChange(nextAvailable[0]);
     }
+
+    showToast(`'${mapName}' 맵이 삭제되었으며 서버 DB에 반영되었습니다.`);
+  };
+
+  const handleRenameMap = async (mapId: string, newName: string) => {
+    if (!newName.trim()) return;
+
+    setActiveMaps((prev) => {
+      const target = prev[mapId];
+      if (!target) return prev;
+      const updatedMap = { ...target, name: newName.trim() };
+
+      // 1. Update localStorage
+      localStorage.setItem('on_house_map_' + mapId, JSON.stringify(updatedMap));
+
+      // 2. Save updated map name to Supabase Cloud DB
+      saveHouseMapToDB(houseCode, mapId, updatedMap);
+
+      // 3. Broadcast map_update to all connected players
+      try {
+        supabase.channel(`house:${houseCode}`).send({
+          type: 'broadcast',
+          event: 'map_update',
+          payload: { mapId, mapData: updatedMap }
+        });
+      } catch (e) {}
+
+      return { ...prev, [mapId]: updatedMap };
+    });
+
+    showToast(`맵 이름이 '${newName.trim()}'(으)로 변경되었습니다.`);
   };
 
   // 3. Status picker updater
@@ -1456,6 +1530,7 @@ export default function App() {
           availableMapIds={availableMapIds}
           onAddMap={handleAddMap}
           onDeleteMap={handleDeleteMap}
+          onRenameMap={handleRenameMap}
           onSaveMap={(mapId, updatedMap) => {
             setActiveMaps((prev) => {
               const next = { ...prev, [mapId]: updatedMap };
