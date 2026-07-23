@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { type MapDefinition, type MapObjectInstance, maps, PRESET_MAP_TEMPLATES } from '../game/MapData';
+import { type MapDefinition, type MapObjectInstance, cleanDuplicateObjects, maps, PRESET_MAP_TEMPLATES } from '../game/MapData';
 import { Trash2, Save, X, Undo, Redo, Pipette, Paintbrush, PaintBucket, Eraser, Info, Sparkles, Plus, Download, Upload, Pencil, MousePointer, Copy, Layers, MoveUp, MoveDown } from 'lucide-react';
 import { getTileDrawInfo, getTilesetInfo } from '../game/CanvasGame';
 
@@ -538,7 +538,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
 
       // 2.5 Objects Layer (MapObjectInstance[]) - Independent Entity Rendering
       if (localMap.objects && localMap.objects.length > 0) {
-        const sortedObjects = [...localMap.objects].sort((a, b) => {
+        const cleaned = cleanDuplicateObjects(localMap.objects);
+        const sortedObjects = [...cleaned].sort((a, b) => {
           const rootA = a.y + a.height - 1;
           const rootB = b.y + b.height - 1;
           if (rootA !== rootB) return rootA - rootB;
@@ -549,17 +550,19 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           const img = images[obj.tilesetKey];
           const tsInfo = getTilesetInfoLocal(obj.tilesetKey);
           if (img && tsInfo) {
+            const tileW = Math.max(1, Math.floor(img.width / tsInfo.cols));
+            const tileH = Math.max(1, Math.floor(img.height / tsInfo.rows));
+
             for (let ody = 0; ody < obj.height; ody++) {
               for (let odx = 0; odx < obj.width; odx++) {
                 const targetTx = obj.x + odx;
                 const targetTy = obj.y + ody;
                 if (targetTx >= 0 && targetTx < localMap.width && targetTy >= 0 && targetTy < localMap.height) {
-                  const localIdx = (obj.startRow + ody) * tsInfo.cols + (obj.startCol + odx);
-                  const srcX = (localIdx % tsInfo.cols) * 16;
-                  const srcY = Math.floor(localIdx / tsInfo.cols) * 16;
+                  const srcX = (obj.startCol + odx) * tileW;
+                  const srcY = (obj.startRow + ody) * tileH;
                   ctx.drawImage(
                     img,
-                    srcX, srcY, 16, 16,
+                    srcX, srcY, tileW, tileH,
                     targetTx * tileSize, targetTy * tileSize, tileSize, tileSize
                   );
                 }
@@ -1156,6 +1159,10 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
     }
 
     if (!isPainting.current || (tool as string) !== 'brush' || e.altKey || isAltPressed) return;
+
+    // Do NOT drag-spawn multi-tile objects on MouseMove!
+    const isMultiTile = !!paletteSelection || brushSize > 1;
+    if (isMultiTile) return;
 
     if (lastPaintedCellRef.current?.x === tx && lastPaintedCellRef.current?.y === ty) return;
     lastPaintedCellRef.current = { x: tx, y: ty };

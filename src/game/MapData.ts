@@ -11,6 +11,35 @@ export interface MapObjectInstance {
   zIndex?: number; // 앞뒤 순서 제어용 z-index
 }
 
+export function cleanDuplicateObjects(objects?: MapObjectInstance[]): MapObjectInstance[] {
+  if (!objects || objects.length === 0) return [];
+  const result: MapObjectInstance[] = [];
+
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const candidate = objects[i];
+    const isDuplicate = result.some(existing => {
+      if (
+        existing.tilesetKey === candidate.tilesetKey &&
+        existing.startCol === candidate.startCol &&
+        existing.startRow === candidate.startRow &&
+        existing.width === candidate.width &&
+        existing.height === candidate.height
+      ) {
+        const dx = Math.abs(existing.x - candidate.x);
+        const dy = Math.abs(existing.y - candidate.y);
+        return dx < candidate.width && dy < candidate.height;
+      }
+      return false;
+    });
+
+    if (!isDuplicate) {
+      result.unshift(candidate);
+    }
+  }
+
+  return result;
+}
+
 export interface MapDefinition {
   id: string;
   name: string;

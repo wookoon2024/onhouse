@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { type MapDefinition, type MapObjectInstance, getCharRowActions, getCharGridDimensions, getCharDisplaySize } from './MapData';
+import { type MapDefinition, type MapObjectInstance, cleanDuplicateObjects, getCharRowActions, getCharGridDimensions, getCharDisplaySize } from './MapData';
 import type { PlayerState } from './syncManager';
 import { getDyedSprite } from './spriteDyer';
 
@@ -1290,7 +1290,8 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
       const objectRootRowMap: Record<number, MapObjectInstance[]> = {};
 
       if (map.objects && map.objects.length > 0) {
-        map.objects.forEach((obj) => {
+        const cleanedObjs = cleanDuplicateObjects(map.objects);
+        cleanedObjs.forEach((obj) => {
           const rootRow = obj.y + obj.height - 1;
           if (!objectRootRowMap[rootRow]) {
             objectRootRowMap[rootRow] = [];
