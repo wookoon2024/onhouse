@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Layers, User, X, Sparkles, ZoomIn, Plus, Trash2, Upload, Download,
   Pin, Pencil, Eraser, Palette, Save, RotateCcw, Grid, Minus,
-  Copy, Clipboard, Trash, Crop, Check, Move, FlipHorizontal
+  Copy, Clipboard, Trash, Crop, Check, Move, FlipHorizontal, Loader2
 } from 'lucide-react';
 import { DEFAULT_CHAR_ROW_ACTIONS, getCharRowActions } from '../game/MapData';
 import { saveHouseAssetToDB, deleteHouseAssetFromDB, getSavedHouseCode } from '../services/HouseService';
@@ -86,6 +86,10 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
       return [];
     }
   });
+
+  // Custom asset uploading & DB sync loading state
+  const [isSavingAsset, setIsSavingAsset] = useState<boolean>(false);
+  const [saveProgressText, setSaveProgressText] = useState<string>('');
 
   // Sync custom assets from localStorage / Realtime updates
   useEffect(() => {
@@ -1241,7 +1245,7 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
     return { dataUrl: canvas.toDataURL(), cols, rows };
   };
 
-  // Save new custom asset (Supports character creation by Name Only!)
+  // Save new custom asset (Supports character creation by Name Only & Shows Upload Progress!)
   const handleSaveCustomAsset = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -1251,81 +1255,103 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
       return;
     }
 
-    let finalUrl = fileDataUrl;
-    let cols = 4;
-    let rows = 7;
-    const tSize = tileSizeInput || 32;
-
-    if (uploadCategory === 'character' && !fileDataUrl) {
-      const template = createDefaultCharTemplate(tSize);
-      finalUrl = template.dataUrl;
-      cols = template.cols;
-      rows = template.rows;
-    } else if (fileDataUrl) {
-      cols = customColsInput || Math.max(1, Math.floor(imgWidth / tSize));
-      rows = customRowsInput || Math.max(1, Math.floor(imgHeight / tSize));
-    } else {
-      alert("맵 타일셋의 경우 이미지 파일을 선택해 주세요!");
-      return;
-    }
-
-    const newId = (uploadCategory === 'map' ? 'custom_map_' : 'custom_char_') + Date.now();
-
-    const newOption: TilesetOption = {
-      id: newId,
-      name,
-      url: finalUrl!,
-      cols,
-      rows,
-      size: tSize,
-      prefix: uploadCategory === 'map' ? 9000 + customMapTilesets.length * 1000 : undefined,
-      isCustom: true
-    };
-
-    const currentHouse = getSavedHouseCode();
-    const assetType = uploadCategory === 'map' ? 'map_tileset' : 'char_sprite';
-
-    if (uploadCategory === 'map') {
-      setCustomMapTilesets((prev) => {
-        const next = [...prev, newOption];
-        localStorage.setItem('on_house_custom_map_tilesets', JSON.stringify(next));
-        return next;
-      });
-      setActiveTab('map');
-      setSelectedMapId(newId);
-    } else {
-      setCustomCharSprites((prev) => {
-        const next = [...prev, newOption];
-        localStorage.setItem('on_house_custom_char_sprites', JSON.stringify(next));
-        return next;
-      });
-      setActiveTab('character');
-      setSelectedCharId(newId);
-    }
-
-    // Notify window to update CanvasGame image caches immediately
-    window.dispatchEvent(new Event('on_house_sprites_updated'));
-
-    // Save to Supabase DB for this House
-    await saveHouseAssetToDB(currentHouse, assetType, newOption);
-
-    // Broadcast asset_update to all players in the same House
     try {
-      supabase.channel(`house:${currentHouse}`).send({
-        type: 'broadcast',
-        event: 'asset_update',
-        payload: {
-          assetType,
-          assetData: newOption
-        }
-      });
-    } catch (e) {}
+      setIsSavingAsset(true);
+      setSaveProgressText('💾 이미지 데이터 규격화 처리 중...');
 
-    setFileDataUrl(null);
-    setAssetNameInput('');
-    setImgWidth(0);
-    setImgHeight(0);
-    setShowUploadModal(false);
+      let finalUrl = fileDataUrl;
+      let cols = 4;
+      let rows = 7;
+      const tSize = tileSizeInput || 32;
+
+      if (uploadCategory === 'character' && !fileDataUrl) {
+        const template = createDefaultCharTemplate(tSize);
+        finalUrl = template.dataUrl;
+        cols = template.cols;
+        rows = template.rows;
+      } else if (fileDataUrl) {
+        cols = customColsInput || Math.max(1, Math.floor(imgWidth / tSize));
+        rows = customRowsInput || Math.max(1, Math.floor(imgHeight / tSize));
+      } else {
+        alert("맵 타일셋의 경우 이미지 파일을 선택해 주세요!");
+        setIsSavingAsset(false);
+        setSaveProgressText('');
+        return;
+      }
+
+      const newId = (uploadCategory === 'map' ? 'custom_map_' : 'custom_char_') + Date.now();
+
+      const newOption: TilesetOption = {
+        id: newId,
+        name,
+        url: finalUrl!,
+        cols,
+        rows,
+        size: tSize,
+        prefix: uploadCategory === 'map' ? 9000 + customMapTilesets.length * 1000 : undefined,
+        isCustom: true
+      };
+
+      const currentHouse = getSavedHouseCode();
+      const assetType = uploadCategory === 'map' ? 'map_tileset' : 'char_sprite';
+
+      setSaveProgressText('💾 로컬 저장소 등록 중...');
+
+      if (uploadCategory === 'map') {
+        setCustomMapTilesets((prev) => {
+          const next = [...prev, newOption];
+          localStorage.setItem('on_house_custom_map_tilesets', JSON.stringify(next));
+          return next;
+        });
+        setActiveTab('map');
+        setSelectedMapId(newId);
+      } else {
+        setCustomCharSprites((prev) => {
+          const next = [...prev, newOption];
+          localStorage.setItem('on_house_custom_char_sprites', JSON.stringify(next));
+          return next;
+        });
+        setActiveTab('character');
+        setSelectedCharId(newId);
+      }
+
+      // Notify window to update CanvasGame image caches immediately
+      window.dispatchEvent(new Event('on_house_sprites_updated'));
+
+      setSaveProgressText('☁️ 하우스 서버(Supabase) 업로드 저장 중...');
+      // Save to Supabase DB for this House
+      await saveHouseAssetToDB(currentHouse, assetType, newOption);
+
+      // Broadcast asset_update to all players in the same House
+      try {
+        supabase.channel(`house:${currentHouse}`).send({
+          type: 'broadcast',
+          event: 'asset_update',
+          payload: {
+            assetType,
+            assetData: newOption
+          }
+        });
+      } catch (e) {}
+
+      setSaveProgressText('✅ 에셋 저장 완료!');
+
+      setTimeout(() => {
+        setFileDataUrl(null);
+        setAssetNameInput('');
+        setImgWidth(0);
+        setImgHeight(0);
+        setShowUploadModal(false);
+        setIsSavingAsset(false);
+        setSaveProgressText('');
+      }, 500);
+
+    } catch (err) {
+      console.error('Error saving asset:', err);
+      alert('에셋 저장 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      setIsSavingAsset(false);
+      setSaveProgressText('');
+    }
   };
 
   // Delete custom asset
@@ -2571,24 +2597,50 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
           background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
           zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center'
         }}
-        onClick={() => setShowUploadModal(false)}
+        onClick={() => {
+          if (!isSavingAsset) setShowUploadModal(false);
+        }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
+              position: 'relative',
               background: '#181825', border: '1px solid rgba(255, 255, 255, 0.2)',
               borderRadius: '12px', padding: '24px', width: '380px',
-              boxShadow: '0 16px 48px rgba(0, 0, 0, 0.9)', color: '#fff'
+              boxShadow: '0 16px 48px rgba(0, 0, 0, 0.9)', color: '#fff',
+              overflow: 'hidden'
             }}
           >
+            {/* Loading Overlay during Supabase DB / Image processing */}
+            {isSavingAsset && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(24, 24, 37, 0.94)', backdropFilter: 'blur(6px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', gap: '14px', zIndex: 50, padding: '20px',
+                textAlign: 'center'
+              }}>
+                <Loader2 size={42} style={{ color: 'var(--accent)' }} className="animate-spin" />
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', marginBottom: '4px' }}>
+                    {saveProgressText || '💾 에셋 처리 및 서버 저장 중...'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#aaa' }}>
+                    이미지 업로드 및 DB 동기화가 진행 중입니다. 잠시만 기다려 주세요!
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               {/* Renamed Modal Title to "➕ 추가" */}
               <div style={{ fontSize: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent)' }}>
                 <Plus size={18} /> 추가
               </div>
               <button
+                disabled={isSavingAsset}
                 onClick={() => setShowUploadModal(false)}
-                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: '#888', cursor: isSavingAsset ? 'not-allowed' : 'pointer' }}
               >
                 <X size={16} />
               </button>
@@ -2602,11 +2654,12 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
                   <button
                     type="button"
                     onClick={() => setUploadCategory('character')}
+                    disabled={isSavingAsset}
                     style={{
                       flex: 1, padding: '8px', fontSize: '11px', borderRadius: '6px',
                       background: uploadCategory === 'character' ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
                       color: '#fff', border: uploadCategory === 'character' ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
-                      cursor: 'pointer', fontWeight: uploadCategory === 'character' ? 'bold' : 'normal'
+                      cursor: isSavingAsset ? 'not-allowed' : 'pointer', fontWeight: uploadCategory === 'character' ? 'bold' : 'normal'
                     }}
                   >
                     👤 캐릭터 스프라이트
@@ -2614,11 +2667,12 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
                   <button
                     type="button"
                     onClick={() => setUploadCategory('map')}
+                    disabled={isSavingAsset}
                     style={{
                       flex: 1, padding: '8px', fontSize: '11px', borderRadius: '6px',
                       background: uploadCategory === 'map' ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
                       color: '#fff', border: uploadCategory === 'map' ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
-                      cursor: 'pointer', fontWeight: uploadCategory === 'map' ? 'bold' : 'normal'
+                      cursor: isSavingAsset ? 'not-allowed' : 'pointer', fontWeight: uploadCategory === 'map' ? 'bold' : 'normal'
                     }}
                   >
                     🗺️ 맵 타일셋
@@ -2632,6 +2686,7 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
                   type="text"
                   placeholder={uploadCategory === 'character' ? "예: 🐶 귀여운 강아지" : "예: 🎨 마법 던전 타일"}
                   value={assetNameInput}
+                  disabled={isSavingAsset}
                   onChange={(e) => setAssetNameInput(e.target.value)}
                   autoFocus
                   style={{
@@ -2648,6 +2703,7 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
                 </label>
                 <select
                   value={tileSizeInput}
+                  disabled={isSavingAsset}
                   onChange={(e) => setTileSizeInput(parseInt(e.target.value, 10))}
                   style={{
                     width: '100%', background: '#0d0d12', border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -2667,6 +2723,7 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
                 <input
                   type="file"
                   accept="image/png, image/jpeg, image/webp"
+                  disabled={isSavingAsset}
                   onChange={handleFileChange}
                   style={{
                     fontSize: '11px', color: '#ccc', background: 'rgba(255,255,255,0.05)',
@@ -2706,6 +2763,7 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
                         min={1}
                         max={16}
                         value={customColsInput}
+                        disabled={isSavingAsset}
                         onChange={(e) => setCustomColsInput(parseInt(e.target.value, 10) || 4)}
                         style={{ width: '100%', background: '#0d0d12', border: '1px solid var(--border-glass)', borderRadius: '4px', padding: '4px 8px', color: '#fff', fontSize: '11px', textAlign: 'center' }}
                       />
@@ -2718,6 +2776,7 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
                         min={1}
                         max={32}
                         value={customRowsInput}
+                        disabled={isSavingAsset}
                         onChange={(e) => setCustomRowsInput(parseInt(e.target.value, 10) || 9)}
                         style={{ width: '100%', background: '#0d0d12', border: '1px solid var(--border-glass)', borderRadius: '4px', padding: '4px 8px', color: '#fff', fontSize: '11px', textAlign: 'center' }}
                       />
@@ -2727,10 +2786,10 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
                   <button
                     type="button"
                     onClick={handleAutoNormalizeSpriteSheet}
-                    disabled={isNormalizing}
+                    disabled={isNormalizing || isSavingAsset}
                     style={{
                       padding: '8px', background: 'var(--accent)', border: 'none', borderRadius: '6px',
-                      color: '#000', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
+                      color: '#000', fontSize: '11px', fontWeight: 'bold', cursor: (isNormalizing || isSavingAsset) ? 'not-allowed' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
                     }}
                   >
@@ -2739,19 +2798,28 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
                 </div>
               )}
 
-              {/* Renamed Submit Button to "💾 저장하기" */}
+              {/* Submit Button with Loading Indicator */}
               <button
                 type="submit"
-                disabled={uploadCategory === 'character' ? !assetNameInput.trim() : !fileDataUrl}
+                disabled={isSavingAsset || (uploadCategory === 'character' ? !assetNameInput.trim() : !fileDataUrl)}
                 style={{
                   marginTop: '8px', padding: '10px',
-                  background: (uploadCategory === 'character' ? assetNameInput.trim() : fileDataUrl) ? 'var(--primary)' : '#444',
-                  border: 'none', borderRadius: '6px', color: '#fff', fontSize: '12px',
-                  fontWeight: 'bold', cursor: (uploadCategory === 'character' ? assetNameInput.trim() : fileDataUrl) ? 'pointer' : 'not-allowed',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                  background: isSavingAsset ? '#e5c07b' : ((uploadCategory === 'character' ? assetNameInput.trim() : fileDataUrl) ? 'var(--primary)' : '#444'),
+                  border: 'none', borderRadius: '6px', color: isSavingAsset ? '#000' : '#fff', fontSize: '12px',
+                  fontWeight: 'bold', cursor: (isSavingAsset || (uploadCategory === 'character' ? !assetNameInput.trim() : !fileDataUrl)) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                <Save size={15} /> 💾 저장하기
+                {isSavingAsset ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" /> {saveProgressText || '💾 에셋 저장 중...'}
+                  </>
+                ) : (
+                  <>
+                    <Save size={15} /> 💾 저장하기
+                  </>
+                )}
               </button>
             </form>
           </div>
