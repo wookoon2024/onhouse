@@ -322,14 +322,25 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
 
+  const defaultFallbackOption: TilesetOption = {
+    id: 'samurai_blue',
+    name: '무사 (파랑)',
+    url: samuraiBlueUrl,
+    cols: 4,
+    rows: 7,
+    size: 32
+  };
+
   const currentOptionList = activeTab === 'character' ? charOptions : mapOptions;
   const currentSelectedId = activeTab === 'character' ? selectedCharId : selectedMapId;
-  const currentOption = currentOptionList.find((opt) => opt.id === currentSelectedId) || currentOptionList[0];
+  const currentOption = (currentOptionList && currentOptionList.length > 0)
+    ? (currentOptionList.find((opt) => opt.id === currentSelectedId) || currentOptionList[0])
+    : defaultFallbackOption;
 
   const activeDisplayTile = selectedTileState || hoveredTile;
 
   // Visual UI display size per tile cell on screen (decoupled from native 16/32/64 tile resolution!)
-  const visualCellSize = activeTab === 'character' ? 36 * gridZoom : (currentOption.size || 16) * gridZoom;
+  const visualCellSize = activeTab === 'character' ? 36 * gridZoom : ((currentOption?.size || 16) * gridZoom);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -553,7 +564,7 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
 
   // ⌨️ Keyboard Shortcuts & Grid Arrow Navigation Listener
   useEffect(() => {
-    if (!isOpen || activeTab !== 'character' || !currentOption) return;
+    if (activeTab !== 'character' || !currentOption) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore key events if typing in form inputs
@@ -570,25 +581,27 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
       let newRow = current.row;
 
       const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      const keyLower = e.key ? e.key.toLowerCase() : '';
+      const code = e.code || '';
 
-      // 1. Ctrl+C : Copy Frame
-      if (isCtrlOrCmd && e.key.toLowerCase() === 'c') {
+      // 1. Ctrl+C : Copy Frame (Supports both English KeyC and Korean ㅊ layout!)
+      if (isCtrlOrCmd && (code === 'KeyC' || keyLower === 'c' || e.key === 'ㅊ')) {
         e.preventDefault();
         handleCopyFrame(current.col, current.row);
         setToastMessage("📋 선택한 프레임이 복사되었습니다! (Ctrl+V로 붙여넣기)");
         return;
       }
 
-      // 2. Ctrl+X : Cut Frame
-      if (isCtrlOrCmd && e.key.toLowerCase() === 'x') {
+      // 2. Ctrl+X : Cut Frame (Supports both English KeyX and Korean ㅌ layout!)
+      if (isCtrlOrCmd && (code === 'KeyX' || keyLower === 'x' || e.key === 'ㅌ')) {
         e.preventDefault();
         handleCutFrame(current.col, current.row);
         setToastMessage("✂️ 선택한 프레임이 잘라내기 되었습니다!");
         return;
       }
 
-      // 3. Ctrl+V : Paste Frame
-      if (isCtrlOrCmd && e.key.toLowerCase() === 'v') {
+      // 3. Ctrl+V : Paste Frame (Supports both English KeyV and Korean ㅍ layout!)
+      if (isCtrlOrCmd && (code === 'KeyV' || keyLower === 'v' || e.key === 'ㅍ')) {
         e.preventDefault();
         if (copiedFrameBuffer) {
           handlePasteFrame(current.col, current.row);
@@ -633,7 +646,7 @@ export const AssetViewer: React.FC<AssetViewerProps> = ({ onClose, onSelectTile 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, activeTab, currentOption, selectedTileState, copiedFrameBuffer, copiedFrameRes]);
+  }, [activeTab, currentOption, selectedTileState, copiedFrameBuffer, copiedFrameRes]);
 
   // Drag & Drop Frame Swap Handler
   const handleDropTile = (e: React.DragEvent, dstCol: number, dstRow: number) => {
