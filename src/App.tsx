@@ -118,6 +118,11 @@ export default function App() {
 
   // 2. Multi-player lists
   const [otherPlayers, setOtherPlayers] = useState<Record<string, PlayerState>>({});
+  const otherPlayersRef = useRef<Record<string, PlayerState>>(otherPlayers);
+  useEffect(() => {
+    otherPlayersRef.current = otherPlayers;
+  }, [otherPlayers]);
+
   const [offlinePlayers, setOfflinePlayers] = useState<Record<string, PlayerState>>(() => getOfflineUsers());
 
   // 3. UI control states
@@ -582,18 +587,16 @@ export default function App() {
       })
       .on('broadcast', { event: 'reaction_anim' }, ({ payload }) => {
         if (!payload) return;
+        // Ignore echo broadcast originating from ourselves (already spawned locally)
+        if (payload.fromId === deviceId.current) return;
 
-        // Ensure particles target receiver's exact local coordinates on receiver screen!
         const adjustedPayload = { ...payload };
         if (adjustedPayload.toId === deviceId.current) {
+          // I am the target receiver of this reaction!
           adjustedPayload.toPos = { x: localPlayerRef.current.x, y: localPlayerRef.current.y };
-          if (adjustedPayload.fromId && otherPlayers[adjustedPayload.fromId]) {
-            adjustedPayload.fromPos = { x: otherPlayers[adjustedPayload.fromId].x, y: otherPlayers[adjustedPayload.fromId].y };
-          }
-        } else if (adjustedPayload.fromId === deviceId.current) {
-          adjustedPayload.fromPos = { x: localPlayerRef.current.x, y: localPlayerRef.current.y };
-          if (adjustedPayload.toId && otherPlayers[adjustedPayload.toId]) {
-            adjustedPayload.toPos = { x: otherPlayers[adjustedPayload.toId].x, y: otherPlayers[adjustedPayload.toId].y };
+          const sender = otherPlayersRef.current[adjustedPayload.fromId];
+          if (sender) {
+            adjustedPayload.fromPos = { x: sender.x, y: sender.y };
           }
         }
 
@@ -1437,14 +1440,14 @@ export default function App() {
 
   // Send reaction emoji with custom action animations!
   const handleSendReaction = (targetId: string, emoji: string) => {
-    const targetPlayer = otherPlayers[targetId] || offlinePlayers[targetId] || {
+    const targetPlayer = otherPlayersRef.current[targetId] || otherPlayers[targetId] || offlinePlayers[targetId] || {
       id: targetId,
       nickname: '친구',
-      x: localPlayer.x + 32,
-      y: localPlayer.y,
+      x: localPlayerRef.current.x + 32,
+      y: localPlayerRef.current.y,
       spriteType: 'ninja_blue',
       hue: 0,
-      mapId: localPlayer.mapId,
+      mapId: localPlayerRef.current.mapId,
       dir: 'down',
       isMoving: false,
       isOnline: true,
@@ -1458,8 +1461,8 @@ export default function App() {
         type: 'heart',
         emoji: '❤️',
         fromId: deviceId.current,
-        fromName: localPlayer.nickname,
-        fromPos: { x: localPlayer.x, y: localPlayer.y },
+        fromName: localPlayerRef.current.nickname,
+        fromPos: { x: localPlayerRef.current.x, y: localPlayerRef.current.y },
         toId: targetId,
         toName: targetPlayer.nickname,
         toPos: { x: targetPlayer.x, y: targetPlayer.y }
@@ -1558,8 +1561,8 @@ export default function App() {
       const payload = {
         type: 'cheer',
         fromId: deviceId.current,
-        fromName: localPlayer.nickname,
-        fromPos: { x: localPlayer.x, y: localPlayer.y },
+        fromName: localPlayerRef.current.nickname,
+        fromPos: { x: localPlayerRef.current.x, y: localPlayerRef.current.y },
         toId: targetId,
         toName: targetPlayer?.nickname
       };
@@ -1580,11 +1583,11 @@ export default function App() {
       const payload = {
         type: 'celebrate',
         fromId: deviceId.current,
-        fromName: localPlayer.nickname,
-        fromPos: { x: localPlayer.x, y: localPlayer.y },
+        fromName: localPlayerRef.current.nickname,
+        fromPos: { x: localPlayerRef.current.x, y: localPlayerRef.current.y },
         toId: targetId,
         toName: targetPlayer?.nickname,
-        toPos: targetPlayer ? { x: targetPlayer.x, y: targetPlayer.y } : { x: localPlayer.x, y: localPlayer.y }
+        toPos: targetPlayer ? { x: targetPlayer.x, y: targetPlayer.y } : { x: localPlayerRef.current.x, y: localPlayerRef.current.y }
       };
 
       window.dispatchEvent(new CustomEvent('on_house_spawn_particle', { detail: payload }));
@@ -1603,8 +1606,8 @@ export default function App() {
       const payload = {
         type: 'flame',
         fromId: deviceId.current,
-        fromName: localPlayer.nickname,
-        fromPos: { x: localPlayer.x, y: localPlayer.y }
+        fromName: localPlayerRef.current.nickname,
+        fromPos: { x: localPlayerRef.current.x, y: localPlayerRef.current.y }
       };
 
       window.dispatchEvent(new CustomEvent('on_house_spawn_particle', { detail: payload }));
@@ -1617,7 +1620,7 @@ export default function App() {
         });
       } catch (e) {}
 
-      showToast(`🔥 [${localPlayer.nickname}] 캐릭터 뒤에 이글이글 불꽃이 타오릅니다!`);
+      showToast(`🔥 [${localPlayerRef.current.nickname}] 캐릭터 뒤에 이글이글 불꽃이 타오릅니다!`);
     } else if (emoji === '☕' || emoji === '커피한잔') {
       // 6. Coffee: Walk in front of target friend smoothly and ask "커피 한 잔 하실래요? ☕"
       if (targetPlayer) {
