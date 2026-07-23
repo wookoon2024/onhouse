@@ -204,6 +204,77 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
   const lastSyncTimeRef = useRef<number>(0);
   const smoothRemotePosRef = useRef<Record<string, { x: number; y: number; isMoving: boolean }>>({});
 
+  // Active animated visual particles (flying hearts, cheering claps)
+  const particlesRef = useRef<Array<{
+    id: string;
+    type: 'heart' | 'cheer' | 'burst';
+    startX: number;
+    startY: number;
+    targetX?: number;
+    targetY?: number;
+    icon: string;
+    startTime: number;
+    duration: number;
+    offsetX?: number;
+    arcOffset?: number;
+    scale?: number;
+  }>>([]);
+
+  useEffect(() => {
+    const handleSpawnParticle = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+
+      const now = performance.now();
+      const { type, fromPos, toPos } = detail;
+
+      if (type === 'heart' && fromPos && toPos) {
+        // Spawn 3 flying hearts with curved arc trajectories
+        for (let i = 0; i < 3; i++) {
+          particlesRef.current.push({
+            id: 'heart_' + now + '_' + i,
+            type: 'heart',
+            startX: fromPos.x,
+            startY: fromPos.y - 12,
+            targetX: toPos.x,
+            targetY: toPos.y - 20,
+            icon: i % 2 === 0 ? '❤️' : '💖',
+            startTime: now + i * 120,
+            duration: 1100,
+            arcOffset: (i - 1) * 35,
+            scale: 1
+          });
+        }
+      } else if (type === 'cheer' && fromPos) {
+        // Spawn 3 clapping icons around character
+        const offsets = [
+          { x: -22, y: -25, icon: '👏' },
+          { x: 0, y: -42, icon: '👏' },
+          { x: 22, y: -25, icon: '👏' }
+        ];
+
+        offsets.forEach((off, idx) => {
+          particlesRef.current.push({
+            id: 'cheer_' + now + '_' + idx,
+            type: 'cheer',
+            startX: fromPos.x,
+            startY: fromPos.y,
+            icon: off.icon,
+            startTime: now + idx * 80,
+            duration: 1600,
+            offsetX: off.x,
+            scale: 1.2
+          });
+        });
+      }
+    };
+
+    window.addEventListener('on_house_spawn_particle', handleSpawnParticle);
+    return () => {
+      window.removeEventListener('on_house_spawn_particle', handleSpawnParticle);
+    };
+  }, []);
+
   useEffect(() => {
     // Only sync position from prop if map changed or if player is NOT moving locally
     const isMapChanged = localPlayerRef.current.mapId !== localPlayer.mapId;
@@ -932,6 +1003,50 @@ export const CanvasGame: React.FC<CanvasGameProps> = ({
         }
 
         ctx.restore();
+      });
+
+      // 4. Render Animated Visual Particles (Flying Hearts & Cheering Claps)
+      const nowTime = performance.now();
+      particlesRef.current = particlesRef.current.filter((pt) => {
+        if (nowTime < pt.startTime) return true;
+        const elapsed = (nowTime - pt.startTime) / pt.duration;
+        if (elapsed >= 1) return false;
+
+        const progress = Math.min(1, Math.max(0, elapsed));
+
+        let px = pt.startX;
+        let py = pt.startY;
+        let scale = pt.scale || 1;
+        let opacity = 1;
+
+        if (pt.type === 'heart' && pt.targetX !== undefined && pt.targetY !== undefined) {
+          // Curved quadratic Bezier trajectory from startX/Y to targetX/Y
+          const midX = (pt.startX + pt.targetX) / 2 + (pt.arcOffset || 0);
+          const midY = Math.min(pt.startY, pt.targetY) - 45;
+
+          const t1 = 1 - progress;
+          px = t1 * t1 * pt.startX + 2 * t1 * progress * midX + progress * progress * pt.targetX;
+          py = t1 * t1 * pt.startY + 2 * t1 * progress * midY + progress * progress * pt.targetY;
+
+          scale = 1 + Math.sin(progress * Math.PI) * 0.4;
+          opacity = progress > 0.85 ? (1 - progress) / 0.15 : 1;
+        } else if (pt.type === 'cheer') {
+          // Floating upward with bounce
+          px = pt.startX + (pt.offsetX || 0);
+          py = pt.startY - 20 - progress * 28 + Math.sin(progress * Math.PI * 3) * 3;
+          scale = (pt.scale || 1.1) + Math.sin(progress * Math.PI) * 0.3;
+          opacity = progress > 0.7 ? (1 - progress) / 0.3 : 1;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+        ctx.font = `${Math.round(18 * scale)}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pt.icon, px, py);
+        ctx.restore();
+
+        return true;
       });
 
       ctx.restore(); // Restore camera translation

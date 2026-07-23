@@ -1,5 +1,5 @@
 import React from 'react';
-import { Map } from 'lucide-react';
+import { Map, Trash2 } from 'lucide-react';
 import { type MapDefinition } from '../game/MapData';
 
 interface MapSelectorProps {
@@ -7,13 +7,17 @@ interface MapSelectorProps {
   availableMapIds: string[];
   activeMaps: Record<string, MapDefinition>;
   onMapChange: (mapId: string) => void;
+  onDeleteMap?: (mapId: string) => void;
 }
+
+const BUILTIN_MAPS = ['room', 'village', 'garden', 'cave', 'subway', 'court'];
 
 export const MapSelector: React.FC<MapSelectorProps> = ({
   currentMapId,
   availableMapIds,
   activeMaps,
-  onMapChange
+  onMapChange,
+  onDeleteMap
 }) => {
   return (
     <div className="glass-panel" style={{
@@ -37,21 +41,42 @@ export const MapSelector: React.FC<MapSelectorProps> = ({
           const mapObj = activeMaps[mId];
           const mapName = mapObj ? mapObj.name : mId;
           const isCurrent = currentMapId === mId;
+          const isCustom = !BUILTIN_MAPS.includes(mId);
 
           return (
-            <button
-              key={mId}
-              onClick={() => onMapChange(mId)}
-              style={{
-                padding: '5px 10px', fontSize: '11px', borderRadius: '6px',
-                background: isCurrent ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
-                color: '#fff', border: isCurrent ? '1px solid var(--primary-hover)' : '1px solid var(--border-glass)',
-                whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer',
-                fontWeight: isCurrent ? 'bold' : 'normal', transition: 'all 0.15s ease'
-              }}
-            >
-              {mapName}
-            </button>
+            <div key={mId} style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+              <button
+                onClick={() => onMapChange(mId)}
+                style={{
+                  padding: '5px 10px', fontSize: '11px', borderRadius: '6px',
+                  background: isCurrent ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
+                  color: '#fff', border: isCurrent ? '1px solid var(--primary-hover)' : '1px solid var(--border-glass)',
+                  whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer',
+                  fontWeight: isCurrent ? 'bold' : 'normal', transition: 'all 0.15s ease'
+                }}
+              >
+                {mapName}
+              </button>
+
+              {isCustom && onDeleteMap && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm(`[${mapName}] 맵을 삭제하시겠습니까?`)) {
+                      onDeleteMap(mId);
+                    }
+                  }}
+                  style={{
+                    background: 'rgba(243, 139, 168, 0.2)', border: '1px solid rgba(243, 139, 168, 0.4)',
+                    color: '#ff6b6b', borderRadius: '4px', padding: '3px 4px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                  title="맵 삭제"
+                >
+                  <Trash2 size={11} />
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

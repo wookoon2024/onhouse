@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { PlayerState } from '../game/syncManager';
-import { User, Palette } from 'lucide-react';
+import { User, Palette, Trash2 } from 'lucide-react';
 
 interface CustomizerProps {
   player: PlayerState;
@@ -17,7 +17,7 @@ const DEFAULT_CHARACTERS = [
 
 export const Customizer: React.FC<CustomizerProps> = ({ player, onChange, onClose }) => {
   // Load custom created character sprites from localStorage
-  const [customChars] = useState<Array<{ id: string; name: string }>>(() => {
+  const [customChars, setCustomChars] = useState<Array<{ id: string; name: string }>>(() => {
     try {
       const saved = localStorage.getItem('on_house_custom_char_sprites');
       return saved ? JSON.parse(saved) : [];
@@ -25,6 +25,30 @@ export const Customizer: React.FC<CustomizerProps> = ({ player, onChange, onClos
       return [];
     }
   });
+
+  const handleDeleteCustomChar = (e: React.MouseEvent, charId: string, charName: string) => {
+    e.stopPropagation();
+    if (!window.confirm(`[${charName}] 커스텀 캐릭터를 삭제하시겠습니까?`)) return;
+
+    const nextCustoms = customChars.filter((c) => c.id !== charId);
+    setCustomChars(nextCustoms);
+    localStorage.setItem('on_house_custom_char_sprites', JSON.stringify(nextCustoms));
+
+    try {
+      const overridesSaved = localStorage.getItem('on_house_char_image_overrides');
+      if (overridesSaved) {
+        const overrides = JSON.parse(overridesSaved);
+        delete overrides[charId];
+        localStorage.setItem('on_house_char_image_overrides', JSON.stringify(overrides));
+      }
+    } catch (err) {}
+
+    if (player.spriteType === charId) {
+      onChange({ spriteType: 'ninja_blue' });
+    }
+
+    window.dispatchEvent(new Event('on_house_sprites_updated'));
+  };
 
   const allCharOptions = [...DEFAULT_CHARACTERS, ...customChars];
 
@@ -85,24 +109,45 @@ export const Customizer: React.FC<CustomizerProps> = ({ player, onChange, onClos
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px',
           maxHeight: '200px', overflowY: 'auto', paddingRight: '4px'
         }}>
-          {allCharOptions.map((char) => (
-            <button
-              key={char.id}
-              onClick={() => onChange({ spriteType: char.id })}
-              style={{
-                padding: '10px', borderRadius: '6px',
-                background: player.spriteType === char.id ? 'var(--primary)' : 'rgba(0,0,0,0.3)',
-                color: '#fff', border: player.spriteType === char.id ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
-                fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
-                textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-              }}
-              title={char.name}
-            >
-              {char.name.startsWith('👤') || char.name.startsWith('⚔️') || char.name.startsWith('🥷') || char.name.startsWith('🌿') || char.name.startsWith('🐷') || char.name.startsWith('🐶')
-                ? char.name
-                : `👤 ${char.name}`}
-            </button>
-          ))}
+          {allCharOptions.map((char) => {
+            const isCustom = !DEFAULT_CHARACTERS.some(d => d.id === char.id);
+            const isSelected = player.spriteType === char.id;
+
+            return (
+              <div key={char.id} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <button
+                  onClick={() => onChange({ spriteType: char.id })}
+                  style={{
+                    flex: 1, padding: isCustom ? '10px 24px 10px 8px' : '10px 8px', borderRadius: '6px',
+                    background: isSelected ? 'var(--primary)' : 'rgba(0,0,0,0.3)',
+                    color: '#fff', border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
+                    fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
+                    textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                  }}
+                  title={char.name}
+                >
+                  {char.name.startsWith('👤') || char.name.startsWith('⚔️') || char.name.startsWith('🥷') || char.name.startsWith('🌿') || char.name.startsWith('🐷') || char.name.startsWith('🐶')
+                    ? char.name
+                    : `👤 ${char.name}`}
+                </button>
+
+                {isCustom && (
+                  <button
+                    onClick={(e) => handleDeleteCustomChar(e, char.id, char.name)}
+                    style={{
+                      position: 'absolute', right: '4px', background: 'rgba(243, 139, 168, 0.25)',
+                      border: '1px solid rgba(243, 139, 168, 0.4)', color: '#ff6b6b',
+                      borderRadius: '4px', padding: '3px', cursor: 'pointer', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center'
+                    }}
+                    title="커스텀 캐릭터 삭제"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

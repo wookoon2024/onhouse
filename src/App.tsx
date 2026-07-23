@@ -523,6 +523,22 @@ export default function App() {
         updateUnreadCount();
         showToast(`[${payload.fromName}] 님이 1:1 대화를 종료했습니다.`);
       })
+      .on('broadcast', { event: 'reaction_anim' }, ({ payload }) => {
+        if (!payload) return;
+        window.dispatchEvent(new CustomEvent('on_house_spawn_particle', { detail: payload }));
+
+        if (payload.type === 'greeting' && payload.fromName) {
+          setChatLogs((logs) => [
+            ...logs,
+            {
+              id: 'sys_greet_' + Date.now() + Math.random(),
+              senderName: '🚀 시스템',
+              text: `${payload.fromName}님이 [${payload.toName || '상대방'}] 님에게 인사를 건넸습니다: "안녕하세요! 👋"`,
+              time: Date.now()
+            }
+          ]);
+        }
+      })
       .on('broadcast', { event: 'reaction' }, ({ payload }) => {
         if (!payload) return;
         if (payload.toId === deviceId.current || payload.toId) {
@@ -1308,24 +1324,130 @@ export default function App() {
     updateUnreadCount();
   };
 
-  // Send reaction emoji
+  // Send reaction emoji with custom action animations!
   const handleSendReaction = (targetId: string, emoji: string) => {
-    try {
-      supabase.channel(`house:${houseCode}`).send({
-        type: 'broadcast',
-        event: 'reaction',
-        payload: {
-          fromId: localPlayer.id,
+    const targetPlayer = otherPlayers[targetId] || offlinePlayers[targetId];
+
+    if (emoji === '❤️' || emoji === '좋아요') {
+      // 1. Flying Heart Particle from local player to target player!
+      if (targetPlayer) {
+        const payload = {
+          type: 'heart',
+          fromId: deviceId.current,
           fromName: localPlayer.nickname,
+          fromPos: { x: localPlayer.x, y: localPlayer.y },
           toId: targetId,
-          emoji
-        }
-      });
-    } catch (e) {}
-    setChatBubbles((prev) => ({
-      ...prev,
-      [targetId]: { text: emoji, time: Date.now() }
-    }));
+          toName: targetPlayer.nickname,
+          toPos: { x: targetPlayer.x, y: targetPlayer.y }
+        };
+
+        window.dispatchEvent(new CustomEvent('on_house_spawn_particle', { detail: payload }));
+
+        try {
+          supabase.channel(`house:${houseCode}`).send({
+            type: 'broadcast',
+            event: 'reaction_anim',
+            payload
+          });
+        } catch (e) {}
+
+        showToast(`[${targetPlayer.nickname}] 님에게 ❤️ 하트를 날렸습니다!`);
+      }
+    } else if (emoji === '👋' || emoji === '인사하기') {
+      // 2. Greeting: Walk in front of target player and say "안녕하세요! 👋"
+      if (targetPlayer) {
+        const destX = Math.max(16, targetPlayer.x - 28);
+        const destY = targetPlayer.y;
+
+        // Move local player character in front of target
+        setLocalPlayer((prev) => ({
+          ...prev,
+          x: destX,
+          y: destY,
+          dir: 'right'
+        }));
+
+        setChatBubbles((prev) => ({
+          ...prev,
+          [deviceId.current]: { text: '안녕하세요! 👋', time: Date.now() }
+        }));
+
+        setChatLogs((logs) => [
+          ...logs,
+          {
+            id: 'sys_greet_' + Date.now(),
+            senderName: '🚀 시스템',
+            text: `${localPlayer.nickname}님이 [${targetPlayer.nickname}] 님에게 다가가 인사를 건넸습니다: "안녕하세요! 👋"`,
+            time: Date.now()
+          }
+        ]);
+
+        const payload = {
+          type: 'greeting',
+          fromId: deviceId.current,
+          fromName: localPlayer.nickname,
+          fromPos: { x: destX, y: destY },
+          toId: targetId,
+          toName: targetPlayer.nickname,
+          toPos: { x: targetPlayer.x, y: targetPlayer.y }
+        };
+
+        try {
+          supabase.channel(`house:${houseCode}`).send({
+            type: 'broadcast',
+            event: 'reaction_anim',
+            payload
+          });
+          supabase.channel(`house:${houseCode}`).send({
+            type: 'broadcast',
+            event: 'chat',
+            payload: {
+              id: deviceId.current,
+              senderName: localPlayer.nickname,
+              text: '안녕하세요! 👋'
+            }
+          });
+        } catch (e) {}
+
+        showToast(`[${targetPlayer.nickname}] 님에게 다가가 "안녕하세요! 👋" 하고 인사를 건넸습니다!`);
+      }
+    } else if (emoji === '👏' || emoji === '응원하기') {
+      // 3. Cheering: Clapping 3 icons burst around character
+      const payload = {
+        type: 'cheer',
+        fromId: deviceId.current,
+        fromName: localPlayer.nickname,
+        fromPos: { x: localPlayer.x, y: localPlayer.y },
+        toId: targetId,
+        toName: targetPlayer?.nickname
+      };
+
+      window.dispatchEvent(new CustomEvent('on_house_spawn_particle', { detail: payload }));
+
+      try {
+        supabase.channel(`house:${houseCode}`).send({
+          type: 'broadcast',
+          event: 'reaction_anim',
+          payload
+        });
+      } catch (e) {}
+
+      showToast(`[${targetPlayer?.nickname || '친구'}] 님을 👏 열렬히 응원했습니다!`);
+    } else {
+      // Standard emote fallback
+      try {
+        supabase.channel(`house:${houseCode}`).send({
+          type: 'broadcast',
+          event: 'reaction',
+          payload: {
+            fromId: localPlayer.id,
+            fromName: localPlayer.nickname,
+            toId: targetId,
+            emoji
+          }
+        });
+      } catch (e) {}
+    }
   };
 
   // Leave offline/online note for target
@@ -1419,6 +1541,7 @@ export default function App() {
         availableMapIds={availableMapIds}
         activeMaps={activeMaps}
         onMapChange={handleMapChange}
+        onDeleteMap={handleDeleteMap}
       />
 
 
