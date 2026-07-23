@@ -294,6 +294,52 @@ export default function App() {
     const channel = supabase.channel(`house:${houseCode}`);
 
     channel
+      .on('broadcast', { event: 'player_join' }, ({ payload }) => {
+        if (!payload || !payload.id || payload.id === deviceId.current) return;
+        const joinName = payload.nickname || payload.player?.nickname || '플레이어';
+
+        setOtherPlayers((prev) => {
+          const isAlreadyPresent = !!prev[payload.id];
+          if (!isAlreadyPresent) {
+            setChatLogs((logs) => [
+              ...logs,
+              {
+                id: 'sys_join_' + Date.now() + Math.random(),
+                senderName: '🚀 시스템',
+                text: `${joinName}님이 접속하였습니다.`,
+                time: Date.now()
+              }
+            ]);
+          }
+          return {
+            ...prev,
+            [payload.id]: payload.player || { id: payload.id, nickname: joinName }
+          };
+        });
+      })
+      .on('broadcast', { event: 'player_leave' }, ({ payload }) => {
+        if (!payload || !payload.id || payload.id === deviceId.current) return;
+        const leaveName = payload.nickname || '플레이어';
+
+        setOtherPlayers((prev) => {
+          if (prev[payload.id]) {
+            const copy = { ...prev };
+            delete copy[payload.id];
+
+            setChatLogs((logs) => [
+              ...logs,
+              {
+                id: 'sys_leave_' + Date.now() + Math.random(),
+                senderName: '🚀 시스템',
+                text: `${leaveName}님이 퇴장하였습니다.`,
+                time: Date.now()
+              }
+            ]);
+            return copy;
+          }
+          return prev;
+        });
+      })
       .on('broadcast', { event: 'player_sync' }, ({ payload }) => {
         if (!payload || payload.id === deviceId.current) return;
 
@@ -326,10 +372,24 @@ export default function App() {
           } catch (e) {}
         }
 
-        setOtherPlayers((prev) => ({
-          ...prev,
-          [payload.id]: payload
-        }));
+        setOtherPlayers((prev) => {
+          const isAlreadyPresent = !!prev[payload.id];
+          if (!isAlreadyPresent) {
+            setChatLogs((logs) => [
+              ...logs,
+              {
+                id: 'sys_join_sync_' + Date.now() + Math.random(),
+                senderName: '🚀 시스템',
+                text: `${payload.nickname || '플레이어'}님이 접속하였습니다.`,
+                time: Date.now()
+              }
+            ]);
+          }
+          return {
+            ...prev,
+            [payload.id]: payload
+          };
+        });
       })
       .on('broadcast', { event: 'request_player_sync' }, ({ payload }) => {
         if (!payload || payload.fromId === deviceId.current) return;
@@ -490,6 +550,28 @@ export default function App() {
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          // Welcome message for self
+          setChatLogs((logs) => [
+            ...logs,
+            {
+              id: 'sys_welcome_' + Date.now(),
+              senderName: '🚀 시스템',
+              text: `온하우스 [${houseCode}] 에 접속하였습니다.`,
+              time: Date.now()
+            }
+          ]);
+
+          // Broadcast player_join to all clients
+          channel.send({
+            type: 'broadcast',
+            event: 'player_join',
+            payload: {
+              id: deviceId.current,
+              nickname: localPlayerRef.current.nickname,
+              player: localPlayerRef.current
+            }
+          });
+
           sendPlayerSync(localPlayerRef.current);
           channel.send({
             type: 'broadcast',
@@ -499,7 +581,35 @@ export default function App() {
         }
       });
 
+    // Window unload / tab close listener to broadcast player_leave event
+    const handleUnload = () => {
+      try {
+        channel.send({
+          type: 'broadcast',
+          event: 'player_leave',
+          payload: {
+            id: deviceId.current,
+            nickname: localPlayerRef.current.nickname
+          }
+        });
+      } catch (e) {}
+
+      if (bcRef.current) {
+        bcRef.current.postMessage({
+          type: 'leave',
+          playerId: deviceId.current,
+          nickname: localPlayerRef.current.nickname
+        });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+
     return () => {
+      handleUnload();
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
       supabase.removeChannel(channel);
     };
   }, [houseCode]);
@@ -649,12 +759,26 @@ export default function App() {
           break;
 
         case 'leave':
-          // Mark as offline immediately
-          setOtherPlayers((prev) => {
-            const copy = { ...prev };
-            delete copy[msg.playerId];
-            return copy;
-          });
+          if (msg.playerId && msg.playerId !== deviceId.current) {
+            setOtherPlayers((prev) => {
+              if (prev[msg.playerId]) {
+                const copy = { ...prev };
+                delete copy[msg.playerId];
+                const leaveName = msg.nickname || '플레이어';
+                setChatLogs((logs) => [
+                  ...logs,
+                  {
+                    id: 'sys_leave_bc_' + Date.now() + Math.random(),
+                    senderName: '🚀 시스템',
+                    text: `${leaveName}님이 퇴장하였습니다.`,
+                    time: Date.now()
+                  }
+                ]);
+                return copy;
+              }
+              return prev;
+            });
+          }
           // Update offline users list
           setOfflinePlayers(() => getOfflineUsers());
           break;
