@@ -512,6 +512,35 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       }
     }
 
+    // 1.5 Base Layer Objects (obj.layer === 'base' - Ground Overlay Objects like Stepping Stones, Rugs)
+    if (localMap.objects && localMap.objects.length > 0) {
+      const baseObjects = cleanDuplicateObjects(localMap.objects.filter(o => o.layer === 'base'));
+      baseObjects.forEach(obj => {
+        const img = images[obj.tilesetKey];
+        const tsInfo = getTilesetInfoLocal(obj.tilesetKey);
+        if (img && tsInfo) {
+          const tileW = Math.max(1, Math.floor(img.width / tsInfo.cols));
+          const tileH = Math.max(1, Math.floor(img.height / tsInfo.rows));
+
+          for (let ody = 0; ody < obj.height; ody++) {
+            for (let odx = 0; odx < obj.width; odx++) {
+              const targetTx = obj.x + odx;
+              const targetTy = obj.y + ody;
+              if (targetTx >= 0 && targetTx < localMap.width && targetTy >= 0 && targetTy < localMap.height) {
+                const srcX = (obj.startCol + odx) * tileW;
+                const srcY = (obj.startRow + ody) * tileH;
+                ctx.drawImage(
+                  img,
+                  srcX, srcY, tileW, tileH,
+                  targetTx * tileSize, targetTy * tileSize, tileSize, tileSize
+                );
+              }
+            }
+          }
+        }
+      });
+    }
+
     // 2. Decor Layer
     if (showDecor) {
       for (let y = 0; y < localMap.height; y++) {
@@ -534,9 +563,9 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         }
       }
 
-      // 2.5 Objects Layer (MapObjectInstance[]) - Independent Entity Rendering
+      // 2.5 Decor Objects Layer (MapObjectInstance[]) - Standing Decor Entity Rendering
       if (localMap.objects && localMap.objects.length > 0) {
-        const cleaned = cleanDuplicateObjects(localMap.objects);
+        const cleaned = cleanDuplicateObjects(localMap.objects.filter(o => o.layer !== 'base'));
         const sortedObjects = [...cleaned].sort((a, b) => {
           const rootA = a.y + a.height - 1;
           const rootB = b.y + b.height - 1;
@@ -983,7 +1012,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         startRow = Math.floor(drawInfo.localIdx / tsInfo.cols);
       }
 
-      const isMultiTileObject = (cols > 1 || rows > 1) && selectedTile !== -1 && editLayer === 'decor';
+      const isMultiTileObject = (tool === 'object' || ((cols > 1 || rows > 1) && editLayer === 'decor')) && selectedTile !== -1 && editLayer !== 'collision';
 
       for (let dy = 0; dy < rows; dy++) {
         for (let dx = 0; dx < cols; dx++) {
