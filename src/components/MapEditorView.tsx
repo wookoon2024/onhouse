@@ -2226,16 +2226,18 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                         if (selDrawInfo && selDrawInfo.tilesetKey === activeTileset) {
                           const selCol = selDrawInfo.localIdx % tilesetCols;
                           const selRow = Math.floor(selDrawInfo.localIdx / tilesetCols);
-                          isSelected = c >= selCol && c < selCol + brushSize && r >= selRow && r < selRow + brushSize;
+                          const pCols = paletteSelection?.cols || 1;
+                          const pRows = paletteSelection?.rows || 1;
+                          isSelected = c >= selCol && c < selCol + pCols && r >= selRow && r < selRow + pRows;
                         } else {
                           isSelected = selectedTile === prefixedIdx;
                         }
                       }
 
-                      // Check if part of hovered multi-tile block
+                      // Single-cell hover outline: ONLY show when NOT actively dragging
                       let isHovered = false;
-                      if (hoverPaletteTile) {
-                        isHovered = c >= hoverPaletteTile.col && c < hoverPaletteTile.col + brushSize && r >= hoverPaletteTile.row && r < hoverPaletteTile.row + brushSize;
+                      if (hoverPaletteTile && !paletteDragStart && !isSelected) {
+                        isHovered = c === hoverPaletteTile.col && r === hoverPaletteTile.row;
                       }
 
                       return (
