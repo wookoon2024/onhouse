@@ -2006,16 +2006,14 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                       <Eraser size={12} /> 지우개 모드(X)
                     </button>
 
-                    {editLayer === 'decor' && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: '#ccc', cursor: 'pointer', marginTop: '4px' }}>
-                        <input
-                          type="checkbox"
-                          checked={autoCollision}
-                          onChange={(e) => setAutoCollision(e.target.checked)}
-                        />
-                        가구 배치 시 자동 충돌막 설정
-                      </label>
-                    )}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: '#ccc', cursor: 'pointer', marginTop: '4px' }}>
+                      <input
+                        type="checkbox"
+                        checked={autoCollision}
+                        onChange={(e) => setAutoCollision(e.target.checked)}
+                      />
+                      가구 배치 시 자동 충돌막 설정
+                    </label>
                   </div>
                 </div>
 
