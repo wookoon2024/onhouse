@@ -2840,26 +2840,14 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                     {Array.from({ length: tilesetCols }).map((_, c) => {
                       const localIdx = r * tilesetCols + c;
                       const prefixedIdx = getPrefixedIndex(localIdx, activeTileset);
-                      
-                      let isSelected = false;
-                      if (paletteSelection && paletteSelection.tilesetKey === activeTileset) {
-                        isSelected =
-                          c >= paletteSelection.startCol &&
-                          c < paletteSelection.startCol + paletteSelection.cols &&
-                          r >= paletteSelection.startRow &&
-                          r < paletteSelection.startRow + paletteSelection.rows;
-                      } else {
-                        const selDrawInfo = getTileDrawInfo(selectedTile, activeTileset);
-                        if (selDrawInfo && selDrawInfo.tilesetKey === activeTileset) {
-                          const selCol = selDrawInfo.localIdx % tilesetCols;
-                          const selRow = Math.floor(selDrawInfo.localIdx / tilesetCols);
-                          const pCols = paletteSelection?.cols || 1;
-                          const pRows = paletteSelection?.rows || 1;
-                          isSelected = c >= selCol && c < selCol + pCols && r >= selRow && r < selRow + pRows;
-                        } else {
-                          isSelected = selectedTile === prefixedIdx;
-                        }
-                      }
+                      const selDrawInfo = getTileDrawInfo(selectedTile, activeTileset);
+                      const selCol = (selDrawInfo && selDrawInfo.tilesetKey === activeTileset) ? (selDrawInfo.localIdx % tilesetCols) : -1;
+                      const selRow = (selDrawInfo && selDrawInfo.tilesetKey === activeTileset) ? Math.floor(selDrawInfo.localIdx / tilesetCols) : -1;
+                      const curCols = (paletteSelection && paletteSelection.tilesetKey === activeTileset && paletteSelection.cols > 1) ? paletteSelection.cols : 1;
+                      const curRows = (paletteSelection && paletteSelection.tilesetKey === activeTileset && paletteSelection.rows > 1) ? paletteSelection.rows : 1;
+
+                      const isSelected = (selectedTile !== -1 && selCol !== -1) &&
+                        (c >= selCol && c < selCol + curCols && r >= selRow && r < selRow + curRows);
 
                       // Single-cell hover outline: ONLY show when NOT actively dragging
                       let isHovered = false;
