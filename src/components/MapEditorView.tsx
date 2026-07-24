@@ -470,15 +470,23 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
     let count = 0;
     const total = Object.keys(assetUrls).length;
 
+    const checkComplete = () => {
+      count++;
+      if (count >= total) {
+        setImages({ ...loaded });
+      }
+    };
+
     Object.entries(assetUrls).forEach(([k, url]) => {
       const img = new Image();
       img.src = url;
       img.onload = () => {
         loaded[k] = img;
-        count++;
-        if (count === total) {
-          setImages(loaded);
-        }
+        checkComplete();
+      };
+      img.onerror = () => {
+        console.warn(`Failed to load tileset image: ${k} (${url})`);
+        checkComplete();
       };
     });
   }, [customMapTilesets]);
@@ -486,8 +494,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
   // Main Canvas Render Loop
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !images.outdoor) return;
-    const ctx = canvas.getContext('2d');
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     const tileSize = 16 * zoom;
@@ -518,9 +526,9 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       }
     }
 
-    // 1.5 Base Layer Objects (obj.layer === 'base' - Ground Overlay Objects like Stepping Stones, Rugs)
+    // 1.5 Base Layer Objects (obj.layer === "base" - Ground Overlay Objects like Stepping Stones, Rugs)
     if (localMap.objects && localMap.objects.length > 0) {
-      const baseObjects = cleanDuplicateObjects(localMap.objects.filter(o => o.layer === 'base'));
+      const baseObjects = cleanDuplicateObjects(localMap.objects.filter(o => o.layer === "base"));
       baseObjects.forEach(obj => {
         const img = images[obj.tilesetKey];
         const tsInfo = getTilesetInfoLocal(obj.tilesetKey);
@@ -546,7 +554,6 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         }
       });
     }
-
     // 2. Decor Layer
     if (showDecor) {
       for (let y = 0; y < localMap.height; y++) {
@@ -755,7 +762,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       }
       ctx.restore();
     }
-  }, [images, localMap, zoom, showGrid, showDecor, showCollision, hoverTile, isAltPressed, tool, brushSize, selectedTile, editLayer, activeTileset]);
+  }, [images, localMap, zoom, showGrid, showDecor, showCollision, hoverTile, isAltPressed, tool, brushSize, selectedTile, editLayer, activeTileset, selectedObjectId, mapBoxSelection]);
 
   // Undo / Redo
   const handleUndo = () => {
@@ -1679,26 +1686,16 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
             </button>
           )}
         </div>
-          <button
-            onClick={handleUndo}
-            disabled={history.length === 0}
-            style={{
-              padding: '4px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)',
-              borderRadius: '4px', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px',
-              cursor: history.length === 0 ? 'not-allowed' : 'pointer', opacity: history.length === 0 ? 0.3 : 1
-            }}
-            title="실행 취소 (Ctrl + Z)"
-          >
-            <Undo size={13} />
-          </button>
 
+        {/* Right Actions: Undo, Redo, Reset */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingBottom: "4px" }}>
           <button
             onClick={handleUndo}
             disabled={history.length === 0}
             style={{
-              padding: '4px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)',
-              borderRadius: '4px', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px',
-              cursor: history.length === 0 ? 'not-allowed' : 'pointer', opacity: history.length === 0 ? 0.3 : 1
+              padding: "4px 10px", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-glass)",
+              borderRadius: "4px", color: "#fff", display: "flex", alignItems: "center", gap: "4px",
+              cursor: history.length === 0 ? "not-allowed" : "pointer", opacity: history.length === 0 ? 0.3 : 1
             }}
             title="실행 취소 (Ctrl + Z)"
           >
@@ -1709,29 +1706,29 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
             onClick={handleRedo}
             disabled={redoHistory.length === 0}
             style={{
-              padding: '4px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)',
-              borderRadius: '4px', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px',
-              cursor: redoHistory.length === 0 ? 'not-allowed' : 'pointer', opacity: redoHistory.length === 0 ? 0.3 : 1
+              padding: "4px 10px", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-glass)",
+              borderRadius: "4px", color: "#fff", display: "flex", alignItems: "center", gap: "4px",
+              cursor: redoHistory.length === 0 ? "not-allowed" : "pointer", opacity: redoHistory.length === 0 ? 0.3 : 1
             }}
             title="다시 실행 (Ctrl + Y)"
           >
             <Redo size={13} />
           </button>
 
-          <div style={{ width: '1px', height: '18px', background: 'var(--border-glass)', margin: '0 2px' }} />
+          <div style={{ width: "1px", height: "18px", background: "var(--border-glass)", margin: "0 2px" }} />
 
           <button
             onClick={handleResetToDefault}
             style={{
-              padding: '4px 10px', background: 'rgba(243, 139, 168, 0.1)', color: 'var(--danger)',
-              border: '1px solid rgba(243, 139, 168, 0.25)', borderRadius: '4px', fontSize: '11px',
-              display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer'
+              padding: "4px 10px", background: "rgba(243, 139, 168, 0.1)", color: "var(--danger)",
+              border: "1px solid rgba(243, 139, 168, 0.25)", borderRadius: "4px", fontSize: "11px",
+              display: "flex", alignItems: "center", gap: "4px", cursor: "pointer"
             }}
           >
             <Trash2 size={13} /> 리셋
           </button>
         </div>
-
+      </div>
       {/* 2. Main Editor Workspace (3-column layout) */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         
@@ -2246,6 +2243,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
               <div style={{ whiteSpace: "nowrap" }}>• <strong style={{ color: "#f9e2af", fontWeight: "normal" }}>Alt + 클릭</strong>: 스포이드</div>
               <div style={{ whiteSpace: "nowrap" }}>• <strong>V</strong>:선택 <strong>B</strong>:브러시 <strong>F</strong>:채우기 <strong>X</strong>:지우개</div>
             </div>
+          </div>
+        </div>
           {/* Floating Object Smart Edit Action Bar (Fixed on bottom center) */}
           {selectedObjectId && (
             <div style={{
@@ -2669,10 +2668,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
             </div>
           </div>
         </div>
-      </div>
 
       {/* Add Map Modal / Popover inside Map Editor */}
-      </div>
       {showAddModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
