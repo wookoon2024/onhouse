@@ -1693,6 +1693,19 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           </button>
 
           <button
+            onClick={handleUndo}
+            disabled={history.length === 0}
+            style={{
+              padding: '4px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)',
+              borderRadius: '4px', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px',
+              cursor: history.length === 0 ? 'not-allowed' : 'pointer', opacity: history.length === 0 ? 0.3 : 1
+            }}
+            title="실행 취소 (Ctrl + Z)"
+          >
+            <Undo size={13} />
+          </button>
+
+          <button
             onClick={handleRedo}
             disabled={redoHistory.length === 0}
             style={{
@@ -1724,7 +1737,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         
         {/* Left Side: Map Properties Panel with 3 Compact Tabs (기본, 크기, 옵션) */}
         <div style={{
-          width: '260px', borderRight: '1px solid var(--border-glass)',
+          width: '300px', borderRight: '1px solid var(--border-glass)',
           background: 'rgba(20, 20, 30, 0.5)', display: 'flex',
           flexDirection: 'column', overflow: 'hidden'
         }}>
@@ -1841,7 +1854,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                         setShowCollision(true);
                       }}
                       style={{
-                        padding: '7px 8px', fontSize: '10px', borderRadius: '4px',
+                        padding: '7px 10px', fontSize: '10px', borderRadius: '4px',
                         background: editLayer === 'collision' && selectedTile === 1 ? 'var(--danger)' : 'rgba(255,255,255,0.04)',
                         color: editLayer === 'collision' && selectedTile === 1 ? '#fff' : 'rgba(255,255,255,0.7)',
                         border: editLayer === 'collision' && selectedTile === 1 ? '1px solid var(--danger)' : '1px solid var(--border-glass)',
@@ -1862,7 +1875,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                         setShowCollision(true);
                       }}
                       style={{
-                        padding: '7px 8px', fontSize: '10px', borderRadius: '4px',
+                        padding: '7px 10px', fontSize: '10px', borderRadius: '4px',
                         background: editLayer === 'collision' && selectedTile === 0 ? '#a6e3a1' : 'rgba(255,255,255,0.04)',
                         color: editLayer === 'collision' && selectedTile === 0 ? '#000' : 'rgba(255,255,255,0.7)',
                         border: editLayer === 'collision' && selectedTile === 0 ? '1px solid #a6e3a1' : '1px solid var(--border-glass)',
@@ -1893,7 +1906,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                         color: tool === 'select' && editLayer !== 'collision' ? '#f5c2e7' : '#fff',
                         border: tool === 'select' && editLayer !== 'collision' ? '1px solid #f5c2e7' : '1px solid var(--border-glass)',
                         display: 'flex', alignItems: 'center', gap: '6px', cursor: editLayer === 'collision' ? 'not-allowed' : 'pointer',
-                        fontWeight: tool === 'select' && editLayer !== 'collision' ? 'bold' : 'normal',
+                        fontWeight: 'normal',
                         opacity: editLayer === 'collision' ? 0.4 : 1
                       }}
                       title="오브젝트 스마트 선택 & 이동/편집 (단축키: V)"
@@ -1974,7 +1987,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                         color: tool === 'object' && editLayer !== 'collision' ? '#fab387' : '#fff',
                         border: tool === 'object' && editLayer !== 'collision' ? '1px solid #fab387' : '1px solid var(--border-glass)',
                         display: 'flex', alignItems: 'center', gap: '6px', cursor: editLayer === 'collision' ? 'not-allowed' : 'pointer',
-                        fontWeight: tool === 'object' && editLayer !== 'collision' ? 'bold' : 'normal',
+                        fontWeight: 'normal',
                         opacity: editLayer === 'collision' ? 0.4 : 1
                       }}
                       title="독립 오브젝트 스탬프 배치 (단축키: O)"
@@ -1994,7 +2007,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                         background: selectedTile === -1 && editLayer !== 'collision' ? 'var(--danger)' : 'rgba(255,255,255,0.03)',
                         color: '#fff', border: selectedTile === -1 && editLayer !== 'collision' ? '1px solid var(--danger)' : '1px solid var(--border-glass)',
                         display: 'flex', alignItems: 'center', gap: '6px', cursor: editLayer === 'collision' ? 'not-allowed' : 'pointer',
-                        fontWeight: selectedTile === -1 && editLayer !== 'collision' ? 'bold' : 'normal',
+                        fontWeight: 'normal',
                         opacity: editLayer === 'collision' ? 0.4 : 1
                       }}
                       title="지우개 (단축키: X)"
@@ -2002,7 +2015,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                       <Eraser size={12} /> 지우개 모드(X)
                     </button>
 
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: '#ccc', cursor: 'pointer', marginTop: '4px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: '#ccc', cursor: 'pointer', marginTop: '4px', whiteSpace: 'nowrap' }}>
                       <input
                         type="checkbox"
                         checked={autoCollision}
@@ -2054,9 +2067,10 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                         padding: '6px 8px', borderRadius: '4px',
                         border: isCustomSelected ? '1px solid #f5c2e7' : '1px solid var(--border-glass)',
                         transition: 'all 0.15s ease',
-                        boxShadow: isCustomSelected ? '0 0 10px rgba(245, 194, 231, 0.2)' : 'none'
+                        boxShadow: isCustomSelected ? '0 0 10px rgba(245, 194, 231, 0.2)' : 'none',
+                        whiteSpace: 'nowrap'
                       }}>
-                        <span style={{ fontSize: '10px', color: isCustomSelected ? '#f5c2e7' : 'var(--text-secondary)', fontWeight: isCustomSelected ? 'bold' : 'normal' }}>
+                        <span style={{ fontSize: '10px', color: isCustomSelected ? '#f5c2e7' : 'var(--text-secondary)', fontWeight: 'normal' }}>
                           사용자 정의:
                         </span>
                         <input
@@ -2110,67 +2124,128 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                 </div>
               </>
             )}
+            {/* Tab 2: 📐 크기 (지도 크기 & 맵 Zoom) */}
+            {leftSidebarTab === "size" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                {/* Section 1: 지도 크기 */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <h4 style={{ fontSize: "11px", color: "var(--accent)", margin: "0 0 2px 0", borderBottom: "1px solid var(--border-glass)", paddingBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "9px", opacity: 0.7 }}>▪</span> 지도 크기
+                  </h4>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "9px", color: "var(--text-secondary)", marginBottom: "4px" }}>가로 (너비)</div>
+                      <input
+                        type="number"
+                        value={widthInput}
+                        onChange={(e) => setWidthInput(e.target.value)}
+                        style={{
+                          width: "100%", background: "#0a0a0f", border: "1px solid var(--border-glass)",
+                          borderRadius: "4px", padding: "6px 10px", fontSize: "12px", color: "#fff", textAlign: "center"
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontSize: "12px", marginTop: "16px", color: "var(--text-muted)" }}>x</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "9px", color: "var(--text-secondary)", marginBottom: "4px" }}>세로 (높이)</div>
+                      <input
+                        type="number"
+                        value={heightInput}
+                        onChange={(e) => setHeightInput(e.target.value)}
+                        style={{
+                          width: "100%", background: "#0a0a0f", border: "1px solid var(--border-glass)",
+                          borderRadius: "4px", padding: "6px 10px", fontSize: "12px", color: "#fff", textAlign: "center"
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleResizeMap}
+                    style={{
+                      width: "100%", padding: "7px", background: "var(--primary)", color: "#fff",
+                      border: "1px solid var(--primary-hover)", borderRadius: "4px", fontSize: "11px",
+                      fontWeight: "normal", cursor: "pointer", marginTop: "2px"
+                    }}
+                  >
+                    크기 변경 적용
+                  </button>
+                </div>
+
+                {/* Section 2: 맵 Zoom (확대 / 축소) */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+                  <h4 style={{ fontSize: "11px", color: "var(--accent)", margin: "0 0 2px 0", borderBottom: "1px solid var(--border-glass)", paddingBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "9px", opacity: 0.7 }}>▪</span> 맵 Zoom (확대 / 축소)
+                  </h4>
+                  
+                  {/* Preset Zoom buttons */}
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    {([0.5, 1.0, 1.5, 2.0, 3.0] as const).map((zVal) => (
+                      <button
+                        key={zVal}
+                        onClick={() => setZoom(zVal)}
+                        style={{
+                          flex: 1, padding: "5px 2px", fontSize: "10px", borderRadius: "4px",
+                          background: zoom === zVal ? "var(--accent)" : "rgba(255,255,255,0.05)",
+                          color: zoom === zVal ? "#000" : "#fff",
+                          border: zoom === zVal ? "1px solid var(--accent)" : "1px solid var(--border-glass)",
+                          fontWeight: "normal", cursor: "pointer", transition: "all 0.15s ease"
+                        }}
+                      >
+                        {Math.round(zVal * 100)}%
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Fine Zoom Row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(255,255,255,0.02)", padding: "5px 8px", borderRadius: "4px", border: "1px solid var(--border-glass)" }}>
+                    <button
+                      onClick={() => setZoom(prev => Math.max(0.5, parseFloat((prev - 0.25).toFixed(2))))}
+                      style={{ padding: "3px 8px", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-glass)", color: "#fff", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                    >-</button>
+                    <span style={{ flex: 1, fontSize: "11px", fontWeight: "normal", color: "var(--accent)", textAlign: "center" }}>
+                      현재 {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                      onClick={() => setZoom(prev => Math.min(4.0, parseFloat((prev + 0.25).toFixed(2))))}
+                      style={{ padding: "3px 8px", background: "rgba(255,255,255,0.05)", border: "1px solid var(--border-glass)", color: "#fff", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}
+                    >+</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 3: 👁️ 옵션 (화면 뷰 옵션) */}
+            {leftSidebarTab === "option" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <h4 style={{ fontSize: "11px", color: "var(--accent)", margin: "0 0 4px 0", borderBottom: "1px solid var(--border-glass)", paddingBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "9px", opacity: 0.7 }}>▪</span> 화면 뷰 옵션
+                </h4>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)} /> 그리드 격자선 보이기
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input type="checkbox" checked={showDecor} onChange={e => setShowDecor(e.target.checked)} /> 가구/장식 레이어 노출
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input type="checkbox" checked={showCollision} onChange={e => setShowCollision(e.target.checked)} /> 벽/통행 경계선 노출 (선명한 빨간색 🔴)
+                </label>
+              </div>
+            )}
 
             {/* Handy Shortcuts Guide Panel at bottom */}
             <div style={{
-              marginTop: 'auto', padding: '10px 12px', background: 'rgba(255, 255, 255, 0.03)',
-              borderRadius: '6px', border: '1px solid var(--border-glass)', fontSize: '10px',
-              color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '4px'
+              marginTop: "auto", padding: "10px 12px", background: "rgba(255, 255, 255, 0.03)",
+              borderRadius: "6px", border: "1px solid var(--border-glass)", fontSize: "10px",
+              color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "4px"
             }}>
-              <div style={{ color: 'var(--accent)', fontWeight: 'normal', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+              <div style={{ color: "var(--accent)", fontWeight: "normal", display: "flex", alignItems: "center", gap: "4px", marginBottom: "2px", whiteSpace: "nowrap" }}>
                 <Info size={12} /> 단축키 팁 (Quick Keys)
               </div>
-              <div>• <strong style={{ color: '#89dceb' }}>Space + 드래그 / 우클릭</strong>: 지도 이동</div>
-              <div>• <strong style={{ color: '#a6e3a1' }}>Ctrl + Z / Y</strong>: 되돌리기/다시실행</div>
-              <div>• <strong style={{ color: '#f9e2af' }}>Alt + 클릭</strong>: 스포이드</div>
-              <div>• <strong>V</strong>:선택 <strong>B</strong>:브러시 <strong>F</strong>:채우기 <strong>X</strong>:지우개</div>
+              <div style={{ whiteSpace: "nowrap" }}>• <strong style={{ color: "#89dceb", fontWeight: "normal" }}>Space + 드래그 / 우클릭</strong>: 지도 이동</div>
+              <div style={{ whiteSpace: "nowrap" }}>• <strong style={{ color: "#a6e3a1", fontWeight: "normal" }}>Ctrl + Z / Y</strong>: 되돌리기/다시실행</div>
+              <div style={{ whiteSpace: "nowrap" }}>• <strong style={{ color: "#f9e2af", fontWeight: "normal" }}>Alt + 클릭</strong>: 스포이드</div>
+              <div style={{ whiteSpace: "nowrap" }}>• <strong>V</strong>:선택 <strong>B</strong>:브러시 <strong>F</strong>:채우기 <strong>X</strong>:지우개</div>
             </div>
-
-          </div>
-        </div>
-
-        {/* Center: Canvas Viewport Area Container */}
-        <div style={{ flex: 1, position: 'relative', overflow: 'hidden', height: '100%' }}>
-          {/* Floating Zoom & Tool Bar over Viewport (Fixed on top left) */}
-          <div style={{
-            position: 'absolute', top: '16px', left: '16px', zIndex: 12,
-            background: 'rgba(20, 20, 30, 0.85)', padding: '6px 12px', borderRadius: '8px',
-            border: '1px solid var(--border-glass)', display: 'flex', gap: '8px', alignItems: 'center',
-            backdropFilter: 'blur(8px)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-            pointerEvents: 'auto'
-          }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>🔍 맵 Zoom:</span>
-            {([0.5, 1.0, 1.5, 2.0, 3.0] as const).map((zVal) => (
-              <button
-                key={zVal}
-                onClick={() => setZoom(zVal)}
-                style={{
-                  padding: '4px 8px', fontSize: '10px', borderRadius: '4px',
-                  background: zoom === zVal ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                  color: zoom === zVal ? '#fff' : 'var(--text-secondary)',
-                  border: zoom === zVal ? '1px solid var(--primary-hover)' : '1px solid var(--border-glass)',
-                  fontWeight: 'normal', cursor: 'pointer'
-                }}
-              >
-                {Math.round(zVal * 100)}%
-              </button>
-            ))}
-
-            <div style={{ width: '1px', height: '14px', background: 'var(--border-glass)' }} />
-
-            <button
-              onClick={() => setZoom(prev => Math.max(0.5, parseFloat((prev - 0.25).toFixed(2))))}
-              style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', color: '#fff', borderRadius: '4px', cursor: 'pointer' }}
-            >-</button>
-            <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--accent)', minWidth: '40px', textAlign: 'center' }}>
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              onClick={() => setZoom(prev => Math.min(4.0, parseFloat((prev + 0.25).toFixed(2))))}
-              style={{ padding: '4px 8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', color: '#fff', borderRadius: '4px', cursor: 'pointer' }}
-            >+</button>
-          </div>
-
           {/* Floating Object Smart Edit Action Bar (Fixed on bottom center) */}
           {selectedObjectId && (
             <div style={{
@@ -2326,10 +2401,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
             </div>
           </div>
         </div>
-
         {/* Resizable Divider Drag Handle */}
         <div
-          onMouseDown={handlePaletteResizeStart}
           style={{
             width: '6px', background: 'rgba(255, 255, 255, 0.05)', cursor: 'col-resize',
             borderLeft: '1px solid var(--border-glass)', borderRight: '1px solid var(--border-glass)',
@@ -2599,6 +2672,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       </div>
 
       {/* Add Map Modal / Popover inside Map Editor */}
+      </div>
       {showAddModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
