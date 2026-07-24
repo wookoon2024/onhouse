@@ -1323,7 +1323,6 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       if (paletteSelection) {
         setPaletteSelection(null);
         setSelectedObjectId(null);
-        setTool('select');
       }
     }
   };
