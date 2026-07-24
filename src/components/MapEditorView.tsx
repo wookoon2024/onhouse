@@ -973,8 +973,48 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       if (!obj) return prev;
       if (obj.x === newTx && obj.y === newTy) return prev;
 
+      const newCollision = prev.collision.map(r => [...r]);
+
+      // 1) Record object's current collision pattern before moving
+      const objCollisionMap: boolean[][] = [];
+      for (let dy = 0; dy < obj.height; dy++) {
+        objCollisionMap[dy] = [];
+        for (let dx = 0; dx < obj.width; dx++) {
+          const ox = obj.x + dx;
+          const oy = obj.y + dy;
+          objCollisionMap[dy][dx] = (ox >= 0 && ox < prev.width && oy >= 0 && oy < prev.height) ? prev.collision[oy][ox] : false;
+        }
+      }
+
+      // 2) Remove collision from old position (only for cells that belonged to object's collision footprint)
+      for (let dy = 0; dy < obj.height; dy++) {
+        for (let dx = 0; dx < obj.width; dx++) {
+          const oldX = obj.x + dx;
+          const oldY = obj.y + dy;
+          if (oldX >= 0 && oldX < prev.width && oldY >= 0 && oldY < prev.height) {
+            if (objCollisionMap[dy][dx]) {
+              newCollision[oldY][oldX] = false;
+            }
+          }
+        }
+      }
+
+      // 3) Transfer collision pattern to new target position
+      for (let dy = 0; dy < obj.height; dy++) {
+        for (let dx = 0; dx < obj.width; dx++) {
+          const nX = newTx + dx;
+          const nY = newTy + dy;
+          if (nX >= 0 && nX < prev.width && nY >= 0 && nY < prev.height) {
+            if (objCollisionMap[dy][dx]) {
+              newCollision[nY][nX] = true;
+            }
+          }
+        }
+      }
+
       return {
         ...prev,
+        collision: newCollision,
         objects: (prev.objects || []).map(o => o.id === objId ? { ...o, x: newTx, y: newTy } : o)
       };
     });
