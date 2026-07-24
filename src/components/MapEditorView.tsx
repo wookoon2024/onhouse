@@ -1332,29 +1332,112 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
     const ty = Math.floor(clickY / tileSize);
 
     // 🧪 Eyedropper on Alt + Click OR Tool = eyedropper
-    if (e.altKey || isAltPressed || tool === 'eyedropper') {
+    // 🧪 Eyedropper on Alt + Click (Disabled for object & select tools) OR Tool = eyedropper
+    const isAltPick = (e.altKey || isAltPressed) && tool !== "object" && tool !== "select";
+    if (isAltPick || tool === "eyedropper") {
       pickTileFromMap(tx, ty);
       return;
     }
 
-    if (tool === 'select') {
-      const clickedObj = (localMap.objects || []).slice().reverse().find(o =>
-        tx >= o.x && tx < o.x + o.width && ty >= o.y && ty < o.y + o.height
-      );
-      if (clickedObj) {
-        setSelectedObjectId(clickedObj.id);
-        setIsDraggingObject(true);
-        setObjectDragStart({ originX: e.clientX, originY: e.clientY, startTx: clickedObj.x, startTy: clickedObj.y });
-        setMapBoxSelectStart(null);
-        setMapBoxSelection(null);
-      } else {
-        // Click on empty ground -> Start Map Box Selection Drag!
+    if (tool === "select") {
+      const isAltHeld = e.altKey || isAltPressed;
+
+      if (isAltHeld) {
+        // Alt + Drag in select mode -> ONLY WAY to start Map Box Multi-Tile Drag Selection!
         setSelectedObjectId(null);
         setIsDraggingObject(false);
         setObjectDragStart(null);
         setMapBoxSelectStart({ tx, ty });
         setMapBoxSelection({ startCol: tx, startRow: ty, cols: 1, rows: 1 });
+        return;
       }
+
+      // NO Alt held -> Pure 1x1 Tile / Object Select & Drag-to-Move Mode!
+      setMapBoxSelectStart(null);
+      setMapBoxSelection(null);
+
+      // A. Check existing MapObjectInstance at (tx, ty)
+      const clickedObj = (localMap.objects || []).slice().reverse().find(o =>
+        tx >= o.x && tx < o.x + o.width && ty >= o.y && ty < o.y + o.height
+      );
+
+      if (clickedObj) {
+        setSelectedObjectId(clickedObj.id);
+        setIsDraggingObject(true);
+        setObjectDragStart({ originX: e.clientX, originY: e.clientY, startTx: clickedObj.x, startTy: clickedObj.y });
+
+        // 🎯 Update "현재 선택된 브러시" preview box in palette panel!
+        if (clickedObj.tiles && clickedObj.tiles[0] && clickedObj.tiles[0][0] !== undefined) {
+          const tIdx = clickedObj.tiles[0][0];
+          if (tIdx !== -1) {
+            setSelectedTile(tIdx);
+            const drawInfo = getTileDrawInfo(tIdx, clickedObj.tilesetKey || activeTileset);
+            if (drawInfo?.tilesetKey) setActiveTileset(drawInfo.tilesetKey);
+          }
+        } else {
+          const tsInfo = getTilesetInfoLocal(clickedObj.tilesetKey);
+          if (tsInfo) {
+            const lIdx = clickedObj.startRow * tsInfo.cols + clickedObj.startCol;
+            setSelectedTile(getPrefixedIndex(lIdx, clickedObj.tilesetKey));
+            setActiveTileset(clickedObj.tilesetKey);
+          }
+        }
+        return;
+      }
+
+      // B. Check 1x1 tile on decorLayer or baseLayer at (tx, ty)
+      const dTile = localMap.decorLayer[ty] ? localMap.decorLayer[ty][tx] : -1;
+      const bTile = localMap.baseLayer[ty] ? localMap.baseLayer[ty][tx] : -1;
+      const targetTile = dTile !== -1 ? dTile : (editLayer === "base" ? bTile : -1);
+
+      if (targetTile !== -1 && targetTile !== 1199 && targetTile !== 2000) {
+        setHistory(prev => [...prev, localMap]);
+        setRedoHistory([]);
+
+        const drawInfo = getTileDrawInfo(targetTile, activeTileset);
+        const tsKey = drawInfo?.tilesetKey || activeTileset;
+        const tsInfo = getTilesetInfoLocal(tsKey);
+        const startCol = drawInfo && tsInfo ? (drawInfo.localIdx % tsInfo.cols) : 0;
+        const startRow = drawInfo && tsInfo ? Math.floor(drawInfo.localIdx / tsInfo.cols) : 0;
+
+        const newObj: MapObjectInstance = {
+          id: `obj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          tilesetKey: tsKey,
+          startCol,
+          startRow,
+          width: 1,
+          height: 1,
+          x: tx,
+          y: ty,
+          layer: editLayer === "base" ? "base" : "decor",
+          zIndex: Date.now(),
+          tiles: [[targetTile]]
+        };
+
+        setLocalMap(prev => {
+          const newDecor = prev.decorLayer.map(r => [...r]);
+          if (editLayer !== "base") newDecor[ty][tx] = -1;
+          return {
+            ...prev,
+            decorLayer: newDecor,
+            objects: [...(prev.objects || []), newObj]
+          };
+        });
+
+        setSelectedObjectId(newObj.id);
+        setIsDraggingObject(true);
+        setObjectDragStart({ originX: e.clientX, originY: e.clientY, startTx: tx, startTy: ty });
+
+        // 🎯 Update "현재 선택된 브러시" preview box in palette panel!
+        setSelectedTile(targetTile);
+        if (tsKey) setActiveTileset(tsKey);
+        return;
+      }
+
+      // C. Click on empty ground cell without Alt -> Clear object selection
+      setSelectedObjectId(null);
+      setIsDraggingObject(false);
+      setObjectDragStart(null);
       return;
     }
 
@@ -1406,8 +1489,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       return;
     }
 
-    // Drag to select box area on map in select mode
-    if (tool === 'select' && mapBoxSelectStart && e.buttons === 1) {
+    // Drag to select box area on map ONLY when Alt is held in select mode
+    if (tool === 'select' && mapBoxSelectStart && (e.altKey || isAltPressed) && e.buttons === 1) {
       const sCol = Math.min(mapBoxSelectStart.tx, tx);
       const sRow = Math.min(mapBoxSelectStart.ty, ty);
       const eCol = Math.max(mapBoxSelectStart.tx, tx);
