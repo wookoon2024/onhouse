@@ -1029,7 +1029,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
     }));
   };
 
-  const handleMoveObjectTiles = (objId: string, newTx: number, newTy: number) => {
+  const handleMoveObjectTiles = (objId: string, newTx: number, newTy: number, startTx?: number, startTy?: number) => {
     setLocalMap(prev => {
       const obj = prev.objects?.find(o => o.id === objId);
       if (!obj) return prev;
@@ -1039,22 +1039,25 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       const newDecor = prev.decorLayer.map(r => [...r]);
       const newCollision = prev.collision.map(r => [...r]);
 
+      const sTx = startTx !== undefined ? startTx : obj.x;
+      const sTy = startTy !== undefined ? startTy : obj.y;
+
       // 1) Record object's current collision pattern before moving
       const objCollisionMap: boolean[][] = [];
       for (let dy = 0; dy < obj.height; dy++) {
         objCollisionMap[dy] = [];
         for (let dx = 0; dx < obj.width; dx++) {
-          const ox = obj.x + dx;
-          const oy = obj.y + dy;
+          const ox = sTx + dx;
+          const oy = sTy + dy;
           objCollisionMap[dy][dx] = (ox >= 0 && ox < prev.width && oy >= 0 && oy < prev.height) ? prev.collision[oy][ox] : false;
         }
       }
 
-      // 2) Erase base/decor tiles to 100% pure black ground (-1) & remove collision from old position
+      // 2) Erase ONLY original starting position (sTx, sTy)
       for (let dy = 0; dy < obj.height; dy++) {
         for (let dx = 0; dx < obj.width; dx++) {
-          const oldX = obj.x + dx;
-          const oldY = obj.y + dy;
+          const oldX = sTx + dx;
+          const oldY = sTy + dy;
           if (oldX >= 0 && oldX < prev.width && oldY >= 0 && oldY < prev.height) {
             newDecor[oldY][oldX] = -1;
             if (obj.layer === "base" || editLayer === "base") { newBase[oldY][oldX] = -1; }
@@ -1064,7 +1067,6 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           }
         }
       }
-
       // 3) Transfer collision pattern to new target position
       for (let dy = 0; dy < obj.height; dy++) {
         for (let dx = 0; dx < obj.width; dx++) {
@@ -1431,7 +1433,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           const newDecor = prev.decorLayer.map(r => [...r]);
           const newBase = prev.baseLayer.map(r => [...r]);
           if (isBasePick) {
-            newBase[ty][tx] = defaultBase; // 🎯 ERASE OLD BASE TILE FROM MAP!
+            newBase[ty][tx] = -1; // 🎯 ERASE OLD BASE TILE FROM MAP TO BLACK (-1)!
           } else {
             newDecor[ty][tx] = -1; // 🎯 ERASE OLD DECOR TILE FROM MAP!
           }
@@ -1503,7 +1505,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
 
       const curObj = localMap.objects?.find(o => o.id === selectedObjectId);
       if (curObj && (curObj.x !== targetTx || curObj.y !== targetTy)) {
-        handleMoveObjectTiles(selectedObjectId, targetTx, targetTy);
+        handleMoveObjectTiles(selectedObjectId, targetTx, targetTy, objectDragStart.startTx, objectDragStart.startTy);
       }
       return;
     }
