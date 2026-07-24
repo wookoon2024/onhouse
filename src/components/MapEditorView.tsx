@@ -2775,97 +2775,83 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           })()}
 
 
-          {/* Scrollable Visual Tileset Grid Sheet */}
-          <div style={{ flex: 1, padding: '16px', overflowY: 'auto', background: '#0d0d12' }}>
-            <div style={{
-              position: 'relative', display: 'inline-block', border: '1px solid #333',
-              background: '#000', imageRendering: 'pixelated'
-            }}>
-              <img
-                src={tilesetUrl}
-                alt="Tileset"
-                style={{
-                  display: 'block',
-                  width: `${tilesetCols * 16 * paletteZoom}px`,
-                  height: `${tilesetRows * 16 * paletteZoom}px`
-                }}
-              />
-              
-              {/* Clickable & Drag-Selectable Direct DOM Cell Grid Overlay */}
-              <div
-                onMouseLeave={() => {
-                  setHoverPaletteTile(null);
-                  setPaletteDragStart(null);
-                }}
-                onMouseUp={() => setPaletteDragStart(null)}
-                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", userSelect: "none" }}
-              >
-                {Array.from({ length: tilesetRows }).map((_, r) => (
-                  <div key={r} style={{ display: "flex" }}>
-                    {Array.from({ length: tilesetCols }).map((_, c) => {
-                      const localIdx = r * tilesetCols + c;
-                      const prefixedIdx = getPrefixedIndex(localIdx, activeTileset);
-                      const selDrawInfo = getTileDrawInfo(selectedTile, activeTileset);
-                      const selCol = (selDrawInfo && selDrawInfo.tilesetKey === activeTileset) ? (selDrawInfo.localIdx % tilesetCols) : -1;
-                      const selRow = (selDrawInfo && selDrawInfo.tilesetKey === activeTileset) ? Math.floor(selDrawInfo.localIdx / tilesetCols) : -1;
-                      const curCols = (paletteSelection && paletteSelection.tilesetKey === activeTileset && paletteSelection.cols > 1) ? paletteSelection.cols : 1;
-                      const curRows = (paletteSelection && paletteSelection.tilesetKey === activeTileset && paletteSelection.rows > 1) ? paletteSelection.rows : 1;
+          {/* Scrollable Visual Tileset Grid Sheet (Direct Cell Rendering & 100% Precise Hit Testing) */}
+          <div style={{ flex: 1, padding: "16px", overflowY: "auto", background: "#0d0d12" }}>
+            <div
+              onMouseLeave={() => {
+                setHoverPaletteTile(null);
+                setPaletteDragStart(null);
+              }}
+              onMouseUp={() => setPaletteDragStart(null)}
+              style={{
+                display: "inline-block", border: "1px solid #333",
+                background: "#000", imageRendering: "pixelated", userSelect: "none"
+              }}
+            >
+              {Array.from({ length: tilesetRows }).map((_, r) => (
+                <div key={r} style={{ display: "flex" }}>
+                  {Array.from({ length: tilesetCols }).map((_, c) => {
+                    const localIdx = r * tilesetCols + c;
+                    const prefixedIdx = getPrefixedIndex(localIdx, activeTileset);
+                    const selDrawInfo = getTileDrawInfo(selectedTile, activeTileset);
+                    const selCol = (selDrawInfo && selDrawInfo.tilesetKey === activeTileset) ? (selDrawInfo.localIdx % tilesetCols) : -1;
+                    const selRow = (selDrawInfo && selDrawInfo.tilesetKey === activeTileset) ? Math.floor(selDrawInfo.localIdx / tilesetCols) : -1;
+                    const curCols = (paletteSelection && paletteSelection.tilesetKey === activeTileset && paletteSelection.cols > 1) ? paletteSelection.cols : 1;
+                    const curRows = (paletteSelection && paletteSelection.tilesetKey === activeTileset && paletteSelection.rows > 1) ? paletteSelection.rows : 1;
 
-                      const isSelected = (selectedTile !== -1 && selCol !== -1) &&
-                        (c >= selCol && c < selCol + curCols && r >= selRow && r < selRow + curRows);
+                    const isSelected = (selectedTile !== -1 && selCol !== -1) &&
+                      (c >= selCol && c < selCol + curCols && r >= selRow && r < selRow + curRows);
 
-                      let isHovered = false;
-                      if (hoverPaletteTile && !paletteDragStart && !isSelected) {
-                        isHovered = c === hoverPaletteTile.col && r === hoverPaletteTile.row;
-                      }
+                    let isHovered = false;
+                    if (hoverPaletteTile && !paletteDragStart && !isSelected) {
+                      isHovered = c === hoverPaletteTile.col && r === hoverPaletteTile.row;
+                    }
 
-                      return (
-                        <div
-                          key={c}
-                          title={`Tile ID: ${localIdx} (Row: ${r}, Col: ${c})`}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setPaletteDragStart({ col: c, row: r });
-                            setPaletteSelection({ startCol: c, startRow: r, cols: 1, rows: 1, tilesetKey: activeTileset });
-                            setSelectedTile(prefixedIdx);
-                            setSelectedObjectId(null);
-                          }}
-                          onMouseEnter={() => {
-                            setHoverPaletteTile({ col: c, row: r });
-                            if (paletteDragStart) {
-                              const sCol = Math.min(paletteDragStart.col, c);
-                              const sRow = Math.min(paletteDragStart.row, r);
-                              const eCol = Math.max(paletteDragStart.col, c);
-                              const eRow = Math.max(paletteDragStart.row, r);
-                              const cols = eCol - sCol + 1;
-                              const rows = eRow - sRow + 1;
-                              setPaletteSelection({ startCol: sCol, startRow: sRow, cols, rows, tilesetKey: activeTileset });
-                              const sLocalIdx = sRow * tilesetCols + sCol;
-                              setSelectedTile(getPrefixedIndex(sLocalIdx, activeTileset));
-                              setBrushSize(Math.max(cols, rows));
-                            }
-                          }}
-                          style={{
-                            width: `${16 * paletteZoom}px`,
-                            height: `${16 * paletteZoom}px`,
-                            border: isSelected 
-                              ? "2px solid var(--accent)" 
-                              : isHovered 
-                                ? "1.5px solid #89dceb" 
-                                : "1px solid rgba(255,255,255,0.05)",
-                            background: isSelected 
-                              ? "rgba(139, 92, 246, 0.45)" 
-                              : isHovered 
-                                ? "rgba(137, 220, 235, 0.2)" 
-                                : "transparent",
-                            boxSizing: "border-box", cursor: "pointer", transition: "border-color 0.05s"
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
+                    return (
+                      <div
+                        key={c}
+                        title={`Tile ID: ${localIdx} (Row: ${r}, Col: ${c})`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setPaletteDragStart({ col: c, row: r });
+                          setPaletteSelection({ startCol: c, startRow: r, cols: 1, rows: 1, tilesetKey: activeTileset });
+                          setSelectedTile(prefixedIdx);
+                          setSelectedObjectId(null);
+                        }}
+                        onMouseEnter={() => {
+                          setHoverPaletteTile({ col: c, row: r });
+                          if (paletteDragStart) {
+                            const sCol = Math.min(paletteDragStart.col, c);
+                            const sRow = Math.min(paletteDragStart.row, r);
+                            const eCol = Math.max(paletteDragStart.col, c);
+                            const eRow = Math.max(paletteDragStart.row, r);
+                            const cols = eCol - sCol + 1;
+                            const rows = eRow - sRow + 1;
+                            setPaletteSelection({ startCol: sCol, startRow: sRow, cols, rows, tilesetKey: activeTileset });
+                            const sLocalIdx = sRow * tilesetCols + sCol;
+                            setSelectedTile(getPrefixedIndex(sLocalIdx, activeTileset));
+                            setBrushSize(Math.max(cols, rows));
+                          }
+                        }}
+                        style={{
+                          width: `${16 * paletteZoom}px`,
+                          height: `${16 * paletteZoom}px`,
+                          backgroundImage: `url(${tilesetUrl})`,
+                          backgroundPosition: `-${c * 16 * paletteZoom}px -${r * 16 * paletteZoom}px`,
+                          backgroundSize: `${tilesetCols * 16 * paletteZoom}px auto`,
+                          imageRendering: "pixelated",
+                          border: isSelected 
+                            ? "2px solid var(--accent)" 
+                            : isHovered 
+                              ? "1.5px solid #89dceb" 
+                              : "1px solid rgba(255,255,255,0.05)",
+                          boxSizing: "border-box", cursor: "pointer"
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         </div>
