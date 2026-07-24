@@ -1728,8 +1728,6 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
             <Trash2 size={13} /> 리셋
           </button>
         </div>
-      </div>
-      {/* 2. Main Editor Workspace (3-column layout) */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         
         {/* Left Side: Map Properties Panel with 3 Compact Tabs (기본, 크기, 옵션) */}
@@ -2245,6 +2243,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
             </div>
           </div>
         </div>
+          {/* Center: Canvas Viewport Area Container */}
+        <div style={{ flex: 1, position: "relative", overflow: "hidden", height: "100%" }}>
           {/* Floating Object Smart Edit Action Bar (Fixed on bottom center) */}
           {selectedObjectId && (
             <div style={{
@@ -2428,7 +2428,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {/* Palette Tile Zoom Scale */}
               <span style={{ fontSize: '9px', color: 'var(--text-secondary)' }}>타일 크기:</span>
-              {([1.5, 2.0, 2.6, 3.0] as const).map((pZoom) => (
+              {([1.5, 2.0, 3.0] as const).map((pZoom) => (
                 <button
                   key={pZoom}
                   onClick={() => setPaletteZoom(pZoom)}
@@ -2669,6 +2669,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           </div>
         </div>
 
+        </div>
+      </div>
       {/* Add Map Modal / Popover inside Map Editor */}
       {showAddModal && (
         <div style={{
