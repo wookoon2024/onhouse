@@ -2712,13 +2712,13 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
 
           {/* Active Selected Tile Preview Box */}
           {(() => {
-            const curCols = (paletteSelection && paletteSelection.tilesetKey === activeTileset) ? paletteSelection.cols : (brushSize || 1);
-            const curRows = (paletteSelection && paletteSelection.tilesetKey === activeTileset) ? paletteSelection.rows : (brushSize || 1);
             const selInfo = getTileDrawInfo(selectedTile, activeTileset);
-            const baseCol = selInfo ? (selInfo.localIdx % tilesetCols) : 0;
-            const baseRow = selInfo ? Math.floor(selInfo.localIdx / tilesetCols) : 0;
-            const startCol = (paletteSelection && paletteSelection.tilesetKey === activeTileset) ? paletteSelection.startCol : baseCol;
-            const startRow = (paletteSelection && paletteSelection.tilesetKey === activeTileset) ? paletteSelection.startRow : baseRow;
+            const tsInfo = selInfo ? getTilesetInfoLocal(selInfo.tilesetKey) : null;
+            const tsCols = tsInfo ? tsInfo.cols : tilesetCols;
+            const startCol = selInfo ? (selInfo.localIdx % tsCols) : 0;
+            const startRow = selInfo ? Math.floor(selInfo.localIdx / tsCols) : 0;
+            const curCols = (paletteSelection && paletteSelection.tilesetKey === activeTileset && paletteSelection.cols > 1) ? paletteSelection.cols : (brushSize || 1);
+            const curRows = (paletteSelection && paletteSelection.tilesetKey === activeTileset && paletteSelection.rows > 1) ? paletteSelection.rows : (brushSize || 1);
 
             return (
               <div style={{
@@ -2739,19 +2739,19 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                       const dy = Math.floor(i / curCols);
                       const cellCol = startCol + dx;
                       const cellRow = startRow + dy;
-                      const cellLocalIdx = cellRow * tilesetCols + cellCol;
+                      const cellLocalIdx = cellRow * tsCols + cellCol;
                       const subTile = getPrefixedIndex(cellLocalIdx, activeTileset);
                       const subInfo = getTileDrawInfo(subTile, activeTileset);
                       if (!subInfo) return <div key={i} />;
-                      const tsInfo = getTilesetInfoLocal(subInfo.tilesetKey);
-                      const subCol = subInfo.localIdx % tsInfo.cols;
-                      const subRow = Math.floor(subInfo.localIdx / tsInfo.cols);
+                      const subTsInfo = getTilesetInfoLocal(subInfo.tilesetKey);
+                      const subCol = subInfo.localIdx % subTsInfo.cols;
+                      const subRow = Math.floor(subInfo.localIdx / subTsInfo.cols);
                       return (
                         <div key={i} style={{
                           width: "100%", height: "100%",
-                          backgroundImage: `url(${tsInfo.url})`,
+                          backgroundImage: `url(${subTsInfo.url})`,
                           backgroundPosition: `-${subCol * 16}px -${subRow * 16}px`,
-                          backgroundSize: `${tsInfo.cols * 100}% auto`,
+                          backgroundSize: `${subTsInfo.cols * 100}% auto`,
                           imageRendering: "pixelated"
                         }} />
                       );
