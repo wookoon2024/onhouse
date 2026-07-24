@@ -82,7 +82,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
   const [isAltPressed, setIsAltPressed] = useState<boolean>(false);
   
   // View Settings & Zoom (0.5x to 4.0x)
-  const [zoom, setZoom] = useState<number>(2); 
+  const [zoom, setZoom] = useState<number>(1.5); 
   const [showGrid, setShowGrid] = useState<boolean>(true);
   const [showBase, setShowBase] = useState<boolean>(true);
   const [showDecor, setShowDecor] = useState<boolean>(true);
