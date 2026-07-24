@@ -2750,8 +2750,8 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                         <div key={i} style={{
                           width: "100%", height: "100%",
                           backgroundImage: `url(${subTsInfo.url})`,
-                          backgroundPosition: `-${subCol * 16}px -${subRow * 16}px`,
-                          backgroundSize: `${subTsInfo.cols * 100}% auto`,
+                          backgroundPosition: `-${subCol * 100}% -${subRow * 100}%`,
+                          backgroundSize: `${subTsInfo.cols * 100}% ${subTsInfo.rows * 100}%`,
                           imageRendering: "pixelated"
                         }} />
                       );
