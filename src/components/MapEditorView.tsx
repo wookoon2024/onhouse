@@ -2433,18 +2433,18 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
 
                 {/* Map Reset Section under Map Size */}
                 <div style={{ marginTop: "16px", borderTop: "1px solid var(--border-glass)", paddingTop: "12px" }}>
-                  <h4 style={{ fontSize: "11px", color: "var(--danger)", margin: "0 0 6px 0", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <h4 style={{ fontSize: "11px", color: "var(--accent)", margin: "0 0 6px 0", display: "flex", alignItems: "center", gap: "6px" }}>
                     <span style={{ fontSize: "9px", opacity: 0.7 }}>▪</span> 지도 전체 초기화
                   </h4>
                   <button
                     onClick={handleClearAllMapContents}
                     style={{
-                      width: "100%", padding: "9px", background: "rgba(243, 139, 168, 0.15)", color: "#f38ba8",
-                      border: "1px solid #f38ba8", borderRadius: "4px", fontSize: "11px",
-                      fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px"
+                      width: "100%", padding: "8px", background: "var(--primary)", color: "#fff",
+                      border: "1px solid var(--primary-hover)", borderRadius: "4px", fontSize: "11px",
+                      fontWeight: "normal", cursor: "pointer", marginTop: "4px"
                     }}
                   >
-                    <Trash2 size={13} /> 지도에 모든 내역 초기화 (빈 화면)
+                    초기화
                   </button>
                 </div>
               </div>
