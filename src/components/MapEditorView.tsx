@@ -1057,7 +1057,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           const oldY = obj.y + dy;
           if (oldX >= 0 && oldX < prev.width && oldY >= 0 && oldY < prev.height) {
             newDecor[oldY][oldX] = -1;
-            newBase[oldY][oldX] = -1; // 🎯 100% Pure Black Canvas Ground (-1)!
+            if (obj.layer === "base" || editLayer === "base") { newBase[oldY][oldX] = -1; }
             if (objCollisionMap[dy][dx]) {
               newCollision[oldY][oldX] = false;
             }
@@ -1277,11 +1277,11 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           if (curTx >= 0 && curTx < prev.width && curTy >= 0 && curTy < prev.height) {
             const dIdx = prev.decorLayer[curTy][curTx];
             const bIdx = prev.baseLayer[curTy][curTx];
-            rowTiles.push(dIdx !== -1 ? dIdx : bIdx);
+            rowTiles.push(editLayer === "decor" ? dIdx : (dIdx !== -1 ? dIdx : bIdx));
             
             // 🎯 ERASE BOTH LAYERS AT VACATED CELLS TO BLACK EMPTY GROUND (1199 / -1)!
             newDecor[curTy][curTx] = -1;
-            newBase[curTy][curTx] = emptyBase;
+            if (editLayer === "base") { newBase[curTy][curTx] = emptyBase; }
           } else {
             rowTiles.push(-1);
           }
