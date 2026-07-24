@@ -1985,69 +1985,92 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
 
                   {/* Preset 1x1, 2x2, 3x3, 4x4 Row */}
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    {([1, 2, 3, 4] as const).map((sz) => (
-                      <button
-                        key={sz}
-                        onClick={() => {
-                          setBrushSize(sz);
-                          setCustomBrushInput(String(sz));
-                        }}
-                        style={{
-                          flex: 1, padding: '5px 2px', fontSize: '10px', borderRadius: '4px',
-                          background: brushSize === sz ? 'var(--accent)' : 'rgba(255,255,255,0.03)',
-                          color: brushSize === sz ? '#000' : '#fff', border: '1px solid var(--border-glass)',
-                          fontWeight: 'bold', cursor: 'pointer'
-                        }}
-                      >
-                        {sz}x{sz}
-                      </button>
-                    ))}
+                    {([1, 2, 3, 4] as const).map((sz) => {
+                      const isSelected = brushSize === sz;
+                      return (
+                        <button
+                          key={sz}
+                          onClick={() => {
+                            setBrushSize(sz);
+                            setCustomBrushInput(String(sz));
+                          }}
+                          style={{
+                            flex: 1, padding: '5px 2px', fontSize: '10px', borderRadius: '4px',
+                            background: isSelected ? 'var(--accent)' : 'rgba(255,255,255,0.03)',
+                            color: isSelected ? '#000' : '#fff',
+                            border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
+                            fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {sz}x{sz}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Custom Size Input Row: [숫자] x [숫자] [적용] */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', background: 'rgba(255,255,255,0.02)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-glass)' }}>
-                    <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>사용자 정의:</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={customBrushInput}
-                      onChange={(e) => setCustomBrushInput(e.target.value)}
-                      style={{
-                        width: '36px', background: '#0a0a0f', border: '1px solid var(--border-glass)',
-                        borderRadius: '3px', padding: '3px 4px', fontSize: '11px', color: '#fff', textAlign: 'center'
-                      }}
-                    />
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>x</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={customBrushInput}
-                      onChange={(e) => setCustomBrushInput(e.target.value)}
-                      style={{
-                        width: '36px', background: '#0a0a0f', border: '1px solid var(--border-glass)',
-                        borderRadius: '3px', padding: '3px 4px', fontSize: '11px', color: '#fff', textAlign: 'center'
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        const val = parseInt(customBrushInput, 10);
-                        if (!isNaN(val) && val >= 1 && val <= 20) {
-                          setBrushSize(val);
-                          if (tool !== 'brush') setTool('brush');
-                        } else {
-                          alert('브러시 크기는 1에서 20 사이의 숫자로 지정해 주세요.');
-                        }
-                      }}
-                      style={{
-                        marginLeft: 'auto', padding: '3px 8px', fontSize: '10px', borderRadius: '3px',
-                        background: 'var(--primary)', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer'
-                      }}
-                    >
-                      적용
-                    </button>
-                  </div>
+                  {/* Custom Size Input Row: [숫자] x [숫자] [적용] (Selected Pink Background when custom size is active!) */}
+                  {(() => {
+                    const isCustomSelected = !([1, 2, 3, 4].includes(brushSize));
+                    return (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px',
+                        background: isCustomSelected ? 'rgba(245, 194, 231, 0.2)' : 'rgba(255,255,255,0.02)',
+                        padding: '6px 8px', borderRadius: '4px',
+                        border: isCustomSelected ? '1px solid #f5c2e7' : '1px solid var(--border-glass)',
+                        transition: 'all 0.15s ease',
+                        boxShadow: isCustomSelected ? '0 0 10px rgba(245, 194, 231, 0.2)' : 'none'
+                      }}>
+                        <span style={{ fontSize: '10px', color: isCustomSelected ? '#f5c2e7' : 'var(--text-secondary)', fontWeight: isCustomSelected ? 'bold' : 'normal' }}>
+                          사용자 정의:
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={customBrushInput}
+                          onChange={(e) => setCustomBrushInput(e.target.value)}
+                          style={{
+                            width: '36px', background: '#0a0a0f',
+                            border: isCustomSelected ? '1px solid #f5c2e7' : '1px solid var(--border-glass)',
+                            borderRadius: '3px', padding: '3px 4px', fontSize: '11px', color: '#fff', textAlign: 'center'
+                          }}
+                        />
+                        <span style={{ fontSize: '10px', color: isCustomSelected ? '#f5c2e7' : 'var(--text-muted)' }}>x</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={customBrushInput}
+                          onChange={(e) => setCustomBrushInput(e.target.value)}
+                          style={{
+                            width: '36px', background: '#0a0a0f',
+                            border: isCustomSelected ? '1px solid #f5c2e7' : '1px solid var(--border-glass)',
+                            borderRadius: '3px', padding: '3px 4px', fontSize: '11px', color: '#fff', textAlign: 'center'
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            const val = parseInt(customBrushInput, 10);
+                            if (!isNaN(val) && val >= 1 && val <= 20) {
+                              setBrushSize(val);
+                              if (tool !== 'brush') setTool('brush');
+                            } else {
+                              alert('브러시 크기는 1에서 20 사이의 숫자로 지정해 주세요.');
+                            }
+                          }}
+                          style={{
+                            marginLeft: 'auto', padding: '3px 8px', fontSize: '10px', borderRadius: '3px',
+                            background: isCustomSelected ? '#f5c2e7' : 'var(--primary)',
+                            color: isCustomSelected ? '#000' : '#fff',
+                            border: 'none', fontWeight: 'bold', cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          적용
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </>
             )}
