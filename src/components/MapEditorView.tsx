@@ -1523,38 +1523,38 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
       background: '#111116', zIndex: 140, display: 'flex', flexDirection: 'column',
       color: '#fff', fontFamily: 'var(--font-pixel)', userSelect: 'none'
     }}>
-      {/* 1. Header Toolbar */}
+      {/* 1. Photoshop-Style Compact Header Toolbar */}
       <div style={{
-        padding: '12px 24px', borderBottom: '1px solid var(--border-glass)',
-        background: 'rgba(30, 30, 46, 0.95)', display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', zIndex: 10
+        padding: '4px 16px 0px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)',
+        background: 'rgba(20, 20, 32, 0.98)', display: 'flex', justifyContent: 'space-between',
+        alignItems: 'flex-end', minHeight: '38px', zIndex: 10
       }}>
         {/* Left Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '4px' }}>
           <button
             onClick={handleCancel}
             style={{
-              padding: '6px 12px', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-glass)',
-              borderRadius: '6px', color: '#fff', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '4px 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-glass)',
+              borderRadius: '4px', color: '#fff', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px',
               cursor: 'pointer'
             }}
           >
-            <X size={14} /> 닫기
+            <X size={13} /> 닫기
           </button>
           <button
             onClick={handleSave}
             style={{
-              padding: '6px 14px', background: 'var(--primary)', border: '1px solid var(--primary-hover)',
-              borderRadius: '6px', color: '#fff', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '4px 12px', background: 'var(--primary)', border: '1px solid var(--primary-hover)',
+              borderRadius: '4px', color: '#fff', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px',
               fontWeight: 'bold', cursor: 'pointer'
             }}
           >
-            <Save size={14} /> 저장하기
+            <Save size={13} /> 저장하기
           </button>
         </div>
 
-        {/* Center: Map Selection Tabs with Add/Delete Controls */}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        {/* Center: Photoshop Document Tabs with Compact Add Button */}
+        <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-end' }}>
           {availableMapIds.map((mId) => {
             const mapObj = activeMaps[mId];
             const name = mapObj ? mapObj.name : mId;
@@ -1566,15 +1566,18 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                 key={mId}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '4px',
-                  padding: '4px 6px 4px 10px', borderRadius: '6px',
-                  background: isSelected ? 'rgba(139, 92, 246, 0.25)' : 'rgba(255,255,255,0.03)',
-                  color: isSelected ? 'var(--accent)' : '#fff',
-                  border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-glass)',
-                  transition: 'all 0.15s ease'
+                  padding: '5px 10px', borderRadius: '6px 6px 0 0',
+                  background: isSelected ? '#1e1e2e' : 'rgba(255, 255, 255, 0.03)',
+                  color: isSelected ? '#fff' : 'rgba(255, 255, 255, 0.65)',
+                  borderTop: isSelected ? '2px solid #89b4fa' : '2px solid transparent',
+                  borderLeft: isSelected ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.03)',
+                  borderRight: isSelected ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.03)',
+                  borderBottom: 'none',
+                  transition: 'all 0.15s ease',
+                  cursor: 'pointer'
                 }}
-              >
-                <button
-                  onClick={() => {
+                onClick={() => {
+                  if (!isSelected) {
                     const hasChanges = JSON.stringify(localMap) !== JSON.stringify(originalMap);
                     if (hasChanges) {
                       if (!window.confirm("저장하지 않은 변경사항이 있습니다. 다른 지도로 이동하시겠습니까?")) {
@@ -1582,16 +1585,12 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                       }
                     }
                     setSelectedMapId(mId);
-                  }}
-                  style={{
-                    background: 'none', border: 'none',
-                    color: isSelected ? 'var(--accent)' : '#fff',
-                    fontSize: '11px', cursor: 'pointer', padding: 0,
-                    fontWeight: isSelected ? 'bold' : 'normal'
-                  }}
-                >
+                  }
+                }}
+              >
+                <span style={{ fontSize: '11px', fontWeight: isSelected ? 'bold' : 'normal' }}>
                   {name}
-                </button>
+                </span>
 
                 {/* Rename button (✏️) */}
                 <button
@@ -1612,7 +1611,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                     background: 'none', border: 'none',
                     color: 'rgba(255, 255, 255, 0.4)',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    padding: '2px', borderRadius: '4px', marginLeft: '2px'
+                    padding: '1px', borderRadius: '3px', marginLeft: '2px'
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLElement).style.color = '#89b4fa';
@@ -1621,7 +1620,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                     (e.currentTarget as HTMLElement).style.color = 'rgba(255, 255, 255, 0.4)';
                   }}
                 >
-                  <Pencil size={11} />
+                  <Pencil size={10} />
                 </button>
 
                 {/* Delete button (×) */}
@@ -1648,7 +1647,7 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                     color: canDelete ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.15)',
                     cursor: canDelete ? 'pointer' : 'not-allowed',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    padding: '2px', borderRadius: '4px', marginLeft: '2px'
+                    padding: '1px', borderRadius: '3px', marginLeft: '1px'
                   }}
                   onMouseEnter={(e) => {
                     if (canDelete) (e.currentTarget as HTMLElement).style.color = '#ff6b6b';
@@ -1657,26 +1656,27 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
                     if (canDelete) (e.currentTarget as HTMLElement).style.color = 'rgba(255, 255, 255, 0.4)';
                   }}
                 >
-                  <X size={12} />
+                  <X size={11} />
                 </button>
               </div>
             );
           })}
 
-          {/* Add Map Button (+) */}
+          {/* Compact Add Map Button (➕ 추가) */}
           {availableMapIds.length < 4 && (
             <button
               onClick={() => setShowAddModal(true)}
               title="새 맵 추가 (최대 4개)"
               style={{
-                padding: '5px 10px', fontSize: '11px', borderRadius: '6px',
-                background: 'rgba(139, 92, 246, 0.15)',
-                color: 'var(--accent)', border: '1px dashed var(--accent)',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                padding: '4px 8px', fontSize: '11px', borderRadius: '4px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                color: 'var(--accent)', border: '1px solid rgba(255, 255, 255, 0.12)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px',
+                marginBottom: '4px', marginLeft: '4px'
               }}
             >
-              <Plus size={13} />
-              <span>맵 추가</span>
+              <Plus size={12} />
+              <span>추가</span>
             </button>
           )}
         </div>
