@@ -1259,7 +1259,9 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         objStartRow = Math.floor(drawInfo.localIdx / tsInfo.cols);
       }
 
-      // Capture exact tile grid for custom combined object
+      // Capture exact tile grid for custom combined object & erase original map cells
+      const defaultBase = prev.tileset === 'interior' ? 1199 : 2000;
+      const newBase = prev.baseLayer.map(r => [...r]);
       const tilesGrid: number[][] = [];
       for (let r = 0; r < rows; r++) {
         const rowTiles: number[] = [];
@@ -1271,6 +1273,9 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
             const bIdx = prev.baseLayer[curTy][curTx];
             rowTiles.push(dIdx !== -1 ? dIdx : bIdx);
             newDecor[curTy][curTx] = -1;
+            if (editLayer === 'base' || dIdx === -1) {
+              newBase[curTy][curTx] = defaultBase;
+            }
           } else {
             rowTiles.push(-1);
           }
@@ -1385,10 +1390,12 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
         return;
       }
 
-      // B. Check 1x1 tile on decorLayer or baseLayer at (tx, ty)
+      // B. Check 1x1 tile on decorLayer or baseLayer at (tx, ty) to move it
       const dTile = localMap.decorLayer[ty] ? localMap.decorLayer[ty][tx] : -1;
       const bTile = localMap.baseLayer[ty] ? localMap.baseLayer[ty][tx] : -1;
-      const targetTile = dTile !== -1 ? dTile : (editLayer === "base" ? bTile : -1);
+      const defaultBase = localMap.tileset === 'interior' ? 1199 : 2000;
+      const isBasePick = editLayer === 'base' || (dTile === -1 && bTile !== -1 && bTile !== defaultBase);
+      const targetTile = isBasePick ? bTile : dTile;
 
       if (targetTile !== -1 && targetTile !== 1199 && targetTile !== 2000) {
         setHistory(prev => [...prev, localMap]);
@@ -1409,17 +1416,23 @@ export const MapEditorView: React.FC<MapEditorViewProps> = ({
           height: 1,
           x: tx,
           y: ty,
-          layer: editLayer === "base" ? "base" : "decor",
+          layer: isBasePick ? 'base' : 'decor',
           zIndex: Date.now(),
           tiles: [[targetTile]]
         };
 
         setLocalMap(prev => {
           const newDecor = prev.decorLayer.map(r => [...r]);
-          if (editLayer !== "base") newDecor[ty][tx] = -1;
+          const newBase = prev.baseLayer.map(r => [...r]);
+          if (isBasePick) {
+            newBase[ty][tx] = defaultBase; // 🎯 ERASE OLD BASE TILE FROM MAP!
+          } else {
+            newDecor[ty][tx] = -1; // 🎯 ERASE OLD DECOR TILE FROM MAP!
+          }
           return {
             ...prev,
             decorLayer: newDecor,
+            baseLayer: newBase,
             objects: [...(prev.objects || []), newObj]
           };
         });
